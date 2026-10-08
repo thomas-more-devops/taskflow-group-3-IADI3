@@ -1,10 +1,14 @@
-/* Reset and Base Styles */
+/* Reset and Base Styles
+   Remove browser default spacing so each component controls its own layout.
+   Border-box includes padding and borders in declared widths, simplifying sizing. */
 * {
     margin: 0;
     padding: 0;
     box-sizing: border-box;
 }
 
+/* System fonts provide a fallback when Inter is unavailable. The gradient fills
+   at least the viewport height, while generous line spacing helps readability. */
 body {
     font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
     background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
@@ -13,7 +17,9 @@ body {
     color: #333;
 }
 
-/* Container */
+/* Container
+   Cap the content width to keep task rows readable on large screens and center
+   the page. Stack sections vertically so the main area can fill unused height. */
 .container {
     max-width: 800px;
     margin: 0 auto;
@@ -29,6 +35,8 @@ body {
     margin-bottom: 3rem;
 }
 
+/* A translucent card and background blur soften the gradient behind the header.
+   Rounded corners and shadows establish the card style reused across the page. */
 .header-content {
     background: rgba(255, 255, 255, 0.95);
     padding: 2rem;
@@ -58,7 +66,8 @@ body {
     font-weight: 400;
 }
 
-/* Main Content */
+/* Main Content
+   Grow into available space in the flex container, keeping the footer below it. */
 .main {
     flex: 1;
 }
@@ -68,6 +77,8 @@ body {
     margin-bottom: 2rem;
 }
 
+/* Keep the input and add button aligned in a row on wide screens.
+   The responsive rules below stack them when horizontal space is limited. */
 .input-container {
     background: rgba(255, 255, 255, 0.95);
     padding: 1.5rem;
@@ -89,6 +100,8 @@ body {
     background: #f8fafc;
 }
 
+/* Replace the default outline with a colored border and ring so keyboard users
+   can identify the focused input. A white background further emphasizes it. */
 .task-input:focus {
     outline: none;
     border-color: #667eea;
@@ -100,6 +113,8 @@ body {
     color: #a0aec0;
 }
 
+/* Reuse the page gradient to emphasize the primary action. Prevent label wrapping
+   and align the icon with its text to keep the button easy to scan. */
 .add-btn {
     background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
     color: white;
@@ -116,6 +131,8 @@ body {
     white-space: nowrap;
 }
 
+/* Lift the button on hover and return it on press to give visual feedback
+   without changing the space it occupies in the layout. */
 .add-btn:hover {
     transform: translateY(-2px);
     box-shadow: 0 10px 25px rgba(102, 126, 234, 0.3);
@@ -187,6 +204,8 @@ body {
     border-color: #cbd5e0;
 }
 
+/* Green and reduced opacity distinguish completed tasks from pending ones.
+   The text is also struck through below so completion is not conveyed by color alone. */
 .task-item.completed {
     background: #f0fff4;
     border-color: #9ae6b4;
@@ -215,6 +234,8 @@ body {
     border-color: #48bb78;
 }
 
+/* Draw a check mark without an image asset. Position it relative to the checkbox
+   and offset it by half its own size to center it in both directions. */
 .task-checkbox.checked::after {
     content: '✓';
     color: white;
@@ -252,6 +273,8 @@ body {
     font-size: 1.1rem;
 }
 
+/* Blue identifies editing, while red signals the destructive delete action.
+   Matching hover backgrounds highlight which action the pointer is over. */
 .edit-btn {
     color: #3182ce;
 }
@@ -294,6 +317,8 @@ body {
     box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
 }
 
+/* Fit as many columns as the available width allows, with a 150px minimum per
+   card. Share remaining space evenly to keep the statistics visually balanced. */
 .stats-grid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
@@ -331,7 +356,9 @@ body {
     font-size: 0.9rem;
 }
 
-/* Responsive Design */
+/* Responsive Design
+   At tablet widths and below, reduce spacing and stack the input controls and
+   task heading to avoid crowding while keeping controls easy to reach. */
 @media (max-width: 768px) {
     .container {
         padding: 1rem 0.5rem;
@@ -361,6 +388,8 @@ body {
     }
 }
 
+/* On narrow phones, show one statistic per row and reduce the header size
+   so the cards and title fit comfortably within the available width. */
 @media (max-width: 480px) {
     .stats-grid {
         grid-template-columns: 1fr;
@@ -375,7 +404,9 @@ body {
     }
 }
 
-/* Animation Classes */
+/* Animation Classes
+   Fade and slide task rows into view to make their appearance easier to follow.
+   Transform changes their visual position without moving surrounding elements. */
 @keyframes slideIn {
     from {
         opacity: 0;
