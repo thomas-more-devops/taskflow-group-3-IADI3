@@ -22,13 +22,13 @@ Guiding principles:
 
 - **Separation of concerns**: structure (HTML), presentation (CSS) and behaviour (JS) live in separate files.
 - **Simplicity**: one entry page, one stylesheet, one script.
-- **Mobile-first**: base styles target small screens and are enhanced for larger ones.
-- **Accessibility**: semantic markup, keyboard support and readable contrast.
+- **Responsive**: the layout adapts to tablets and phones through media queries.
+- **Keyboard support**: tasks can be added with the Enter key and the input is focused on load.
 
 | Concern | Technology |
 | --- | --- |
 | Markup | HTML5 |
-| Styling | CSS3 (Flexbox, Grid, custom properties) |
+| Styling | CSS3 (Flexbox, Grid, media queries, animations) |
 | Logic | JavaScript ES6+ (one class) |
 | Storage | Browser `localStorage` |
 
@@ -50,29 +50,32 @@ taskflow/
 
 ## HTML Layer
 
-`index.html` is a single semantic page. Its main areas are:
+`index.html` is a single page wrapped in a `.container` element. It uses the semantic `header`, `main` and `footer` elements, and `div` blocks inside `main`:
 
-- **Header**: application title and tagline.
-- **Task input section**: a text field and an "Add Task" button.
-- **Tasks section**: the task counter, the dynamically rendered list and an empty-state message shown when there are no tasks.
-- **Stats section**: cards showing totals (for example total, completed and pending tasks).
-- **Footer**: closing information.
+- **Header** (`header.header`): application title and tagline.
+- **Task input** (`.task-input-section`): the `#taskInput` text field and the `#addTaskBtn` button.
+- **Task list** (`.tasks-section`): the `#taskCount` counter, the `#tasksList` container filled by JavaScript, and the `#emptyState` message shown when there are no tasks.
+- **Statistics** (`.stats-section`): three cards with `#totalTasks`, `#completedTasks` and `#pendingTasks`.
+- **Footer** (`footer.footer`): copyright line.
 
-The list and the statistics are empty containers in the HTML. JavaScript fills them at runtime, so the markup stays small and the data stays in one place.
+The `<script>` tag is placed at the end of the body so every element already exists when `app.js` runs. The Inter font is loaded from Google Fonts.
+
+The list is an empty container and the statistics start at zero. JavaScript fills them at runtime, so the markup stays small and the data stays in one place. Elements that JavaScript needs are looked up by `id`.
 
 ## CSS Layer
 
 `styles/main.css` is organised from general to specific:
 
-1. Reset and base styles
-2. Design tokens (CSS custom properties: colours, spacing, font sizes, radii)
-3. Layout (container, header, main sections)
-4. Components (input, buttons, task items, stat cards)
-5. States and utilities (for example the completed-task style)
-6. Responsive rules (media queries, mobile-first)
-7. Animations
+1. Reset and base styles (`*` reset, `body` with the purple gradient background and the Inter font)
+2. Layout (`.container` limited to 800px, header, main sections)
+3. Components (input, buttons, task items, stat cards)
+4. States (for example the completed-task style)
+5. Responsive rules
+6. Animations (a `slideIn` keyframe)
 
-Design tokens keep the look consistent and make theme changes a one-line edit. Class names follow a BEM-like `block__element--modifier` pattern.
+Colours, spacing and sizes are written directly in each rule; the stylesheet does not define CSS custom properties. Class names are descriptive kebab-case (`task-input`, `add-btn`, `stat-card`).
+
+**Responsive behaviour**: the base styles target desktop and two `max-width` media queries (768px and 480px) adjust the layout for tablets and phones.
 
 ## JavaScript Layer
 
@@ -80,16 +83,17 @@ All behaviour lives in `scripts/app.js`, inside a single `TaskFlow` class that i
 
 | Responsibility | Typical methods |
 | --- | --- |
-| Task operations | `addTask`, `deleteTask`, `toggleTask`, `editTask` |
+| Start-up | `initializeApp`, `showWelcomeMessage`, `bindEvents` |
+| Task operations | `addTask`, `deleteTask`, `toggleTask`, `editTask`, `clearAllTasks` |
 | Rendering | `renderTasks`, `updateStats` |
-| Persistence | `saveTasks`, `loadTasks` |
-| Utilities | `escapeHtml`, `showNotification` |
+| Persistence | `saveTasks`, `loadTasks`, `getNextTaskId` |
+| Utilities | `escapeHtml`, `showNotification`, `exportTasks`, `getTaskStats` |
 
 **Start-up sequence**
 
 1. `DOMContentLoaded` fires and a `TaskFlow` instance is created.
-2. Saved tasks are loaded from `localStorage`.
-3. Event listeners are attached (button click, Enter key, list actions).
+2. Saved tasks and the ID counter are loaded from `localStorage`.
+3. Event listeners are attached (button click and Enter key); the input receives focus.
 4. The list and statistics are rendered for the first time.
 
 The class keeps the application state (the `tasks` array and an ID counter). Every change follows the same pattern: update state, save, re-render.
@@ -108,7 +112,7 @@ Each task is a plain object:
 }
 ```
 
-The whole array is stored as JSON in `localStorage`. When loading, the data is parsed inside a `try/catch` and invalid entries are discarded, so corrupted storage never breaks the app.
+The whole array is stored as JSON in `localStorage` under the key `taskflow_tasks`, and the next free ID under `taskflow_counter`. Reading and writing happen inside `try/catch` blocks: if storage is unavailable or the JSON is invalid, the app logs the error and falls back to an empty list (or shows an error notification when saving fails).
 
 ## Data Flow
 
@@ -119,21 +123,24 @@ User action -> event listener -> method call -> state update -> save -> re-rende
 Example, adding a task:
 
 1. The user types text and clicks "Add Task" or presses Enter.
-2. `addTask()` validates and trims the input.
+2. `addTask()` trims the input and shows a warning if it is empty.
 3. A new task object is created and pushed to `tasks`.
 4. `saveTasks()` writes the array to `localStorage`.
 5. `renderTasks()` and `updateStats()` refresh the interface.
-6. The input is cleared and focused for the next task.
+6. A success notification is shown, and the input is cleared and focused for the next task.
 
 ## Security and Accessibility
 
-- **XSS prevention**: user text is escaped (or inserted with `textContent`) before being shown.
-- **Input validation**: empty and overly long descriptions are rejected with a message.
-- **Safe storage handling**: parsing errors fall back to an empty list.
-- **Accessibility**: semantic elements, ARIA labels where needed, keyboard navigation, visible focus states and sufficient colour contrast.
+- **XSS prevention**: task text is passed through `escapeHtml()` before it is inserted into the list.
+- **Input validation**: empty descriptions are rejected with a warning.
+- **Safe storage handling**: storage errors are caught and the app keeps working.
+- **Confirmation dialogs**: deleting a task or clearing all tasks asks for confirmation first.
+- **Accessibility**: the page uses `header`, `main` and `footer` and can be used with the keyboard. There is room to improve (ARIA labels, a `<label>` for the input, a maximum task length).
 
 ## Future Improvements
 
+- Move colours and spacing into CSS custom properties.
+- Add ARIA labels and a maximum task length.
 - Split the code into ES modules and smaller components.
 - Add automated tests and linting.
 - Add offline support with a service worker.

@@ -73,14 +73,14 @@ Prerequisites: Git, a GitHub account, a modern browser and basic knowledge of HT
 - Add ARIA labels and alt text where needed and keep a logical heading order.
 
 **CSS**
-- Use the existing custom properties instead of hard-coded values.
-- Name classes in kebab-case, following the BEM-like `block__element--modifier` pattern, and describe purpose rather than appearance.
-- Write mobile-first styles and enhance them with `min-width` media queries.
+- Keep new rules in `styles/main.css`, in the section that matches their purpose (layout, components, states, responsive).
+- Name classes in kebab-case (for example `task-item`, `add-btn`) and describe purpose rather than appearance.
+- Check your changes at the existing breakpoints (768px and 480px) and add rules to the `max-width` media queries when needed.
 
 **JavaScript**
 - Use modern ES6+ syntax (`const`/`let`, arrow functions, template literals).
 - Validate input and handle errors with `try/catch` where something can fail.
-- Never insert user text with `innerHTML` unescaped; use `textContent` or the escape helper to prevent XSS.
+- Never insert user text with `innerHTML` unescaped; use `textContent` or the existing `escapeHtml()` helper to prevent XSS.
 - Keep functions short and give them clear names.
 
 ## Commit Messages
