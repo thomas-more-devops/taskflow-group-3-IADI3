@@ -1,19 +1,14 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <!-- Character encoding and responsive viewport so the app scales on phones and tablets -->
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>TaskFlow - Task Management App</title>
-    <!-- Main stylesheet: layout, theme and animations live in styles/main.css -->
     <link rel="stylesheet" href="styles/main.css">
-    <!-- Inter font from Google Fonts, used for all typography -->
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 </head>
 <body>
-    <!-- Root wrapper: centers the content and limits its maximum width -->
     <div class="container">
-        <!-- ===== HEADER: app name and tagline ===== -->
         <header class="header">
             <div class="header-content">
                 <h1 class="app-title">
@@ -24,12 +19,16 @@
             </div>
         </header>
 
-        <!-- ===== MAIN: input form, task list and statistics ===== -->
         <main class="main">
-            <!-- Task input: the text field and button are read by scripts/app.js via their ids -->
             <div class="task-input-section">
                 <div class="input-container">
                     <input type="text" id="taskInput" placeholder="What needs to be done?" class="task-input">
+                    <div class="input-options">
+                        <div class="date-input-container">
+                            <label for="dueDateInput" class="date-label">Due:</label>
+                            <input type="date" id="dueDateInput" class="date-input">
+                        </div>
+                    </div>
                     <button id="addTaskBtn" class="add-btn">
                         <span class="add-icon">+</span>
                         Add Task
@@ -37,17 +36,37 @@
                 </div>
             </div>
 
-            <!-- Task list: header with counter, the list itself and the empty state -->
+            <!-- Due Date Filter Section -->
+            <div class="due-date-filters">
+                <h3>Filter by Due Date:</h3>
+                <div class="due-date-filter-buttons">
+                    <button class="due-date-filter-btn active" data-filter="all">
+                        <span class="filter-icon">📋</span>
+                        All Tasks
+                    </button>
+                    <button class="due-date-filter-btn" data-filter="due-today">
+                        <span class="filter-icon">📅</span>
+                        Due Today
+                    </button>
+                    <button class="due-date-filter-btn" data-filter="overdue">
+                        <span class="filter-icon">⚠️</span>
+                        Overdue
+                    </button>
+                    <button class="due-date-filter-btn" data-filter="no-due-date">
+                        <span class="filter-icon">📝</span>
+                        No Due Date
+                    </button>
+                </div>
+            </div>
+
             <div class="tasks-section">
                 <div class="tasks-header">
                     <h2>Your Tasks</h2>
-                    <!-- Updated by JavaScript every time a task is added or removed -->
                     <span id="taskCount" class="task-count">0 tasks</span>
                 </div>
                 <div id="tasksList" class="tasks-list">
                     <!-- Tasks will be dynamically added here -->
                 </div>
-                <!-- Shown by JavaScript only when there are no tasks -->
                 <div id="emptyState" class="empty-state">
                     <div class="empty-icon">✨</div>
                     <h3>No tasks yet</h3>
@@ -55,7 +74,6 @@
                 </div>
             </div>
 
-            <!-- Statistics: three counters recalculated by JavaScript after each change -->
             <div class="stats-section">
                 <div class="stats-grid">
                     <div class="stat-card">
@@ -70,17 +88,28 @@
                         <span class="stat-number" id="pendingTasks">0</span>
                         <span class="stat-label">Pending</span>
                     </div>
+                    <div class="stat-card overdue-stats">
+                        <span class="stat-number" id="overdueTasks">0</span>
+                        <span class="stat-label">Overdue</span>
+                    </div>
+                </div>
+
+                <div class="detailed-analytics">
+                    <div class="analytics-section">
+                        <h3>Due Date Overview</h3>
+                        <div id="dueDateStats" class="due-date-stats-list">
+                            <!-- Due date statistics will be populated here -->
+                        </div>
+                    </div>
                 </div>
             </div>
         </main>
 
-        <!-- ===== FOOTER ===== -->
         <footer class="footer">
             <p>&copy; 2024 TaskFlow. Built with HTML, CSS, and JavaScript.</p>
         </footer>
     </div>
 
-    <!-- Application logic, loaded last so every element above already exists in the DOM -->
     <script src="scripts/app.js"></script>
 </body>
 </html>
