@@ -55,8 +55,10 @@ class TaskFlow {
     addTask() {
         const taskInput = document.getElementById('taskInput');
         const dueDateInput = document.getElementById('dueDateInput');
+        const prioritySelect = document.getElementById('prioritySelect');
         const taskText = taskInput.value.trim();
         const dueDate = dueDateInput.value;
+        const priority = prioritySelect.value;
 
         if (taskText === '') {
             this.showNotification('Please enter a task description', 'warning');
@@ -68,6 +70,7 @@ class TaskFlow {
             id: this.taskIdCounter++,
             text: taskText,
             dueDate: dueDate || null,
+            priority: priority,
             completed: false,
             createdAt: new Date().toISOString(),
             completedAt: null
@@ -80,6 +83,7 @@ class TaskFlow {
 
         taskInput.value = '';
         this.setDefaultDueDate();
+        prioritySelect.value = 'medium';
         taskInput.focus();
 
         this.showNotification('Task added successfully!', 'success');
@@ -192,6 +196,20 @@ class TaskFlow {
         }
     }
 
+    getPriorityValue(priority) {
+        const priorities = { high: 3, medium: 2, low: 1 };
+        return priorities[priority] || 2;
+    }
+
+    getPriorityIcon(priority) {
+        const icons = {
+            high: '🔥',
+            medium: '⚡',
+            low: '📌'
+        };
+        return icons[priority] || '⚡';
+    }
+
     renderTasks() {
         const tasksList = document.getElementById('tasksList');
         const emptyState = document.getElementById('emptyState');
@@ -206,11 +224,17 @@ class TaskFlow {
         tasksList.style.display = 'flex';
         emptyState.style.display = 'none';
 
-        // Sort tasks: incomplete first, then by due date, then by creation date
+        // Sort tasks: incomplete first, then by priority (high to low), then by due date, then by creation date
         const sortedTasks = [...filteredTasks].sort((a, b) => {
-            // First sort by completion status
+            // First sort by completion status (incomplete first)
             if (a.completed !== b.completed) {
                 return a.completed - b.completed;
+            }
+
+            // Then sort by priority (high to low)
+            const priorityDiff = this.getPriorityValue(b.priority) - this.getPriorityValue(a.priority);
+            if (priorityDiff !== 0) {
+                return priorityDiff;
             }
 
             // Then sort by due date (overdue first, then by date)
@@ -232,12 +256,15 @@ class TaskFlow {
             const dueDateText = this.formatDueDate(task.dueDate);
 
             return `
-                <div class="task-item ${task.completed ? 'completed' : ''} ${isOverdue ? 'overdue' : ''} ${isDueToday ? 'due-today' : ''}" data-task-id="${task.id}">
+                <div class="task-item ${task.completed ? 'completed' : ''} priority-${task.priority} ${isOverdue ? 'overdue' : ''} ${isDueToday ? 'due-today' : ''}" data-task-id="${task.id}">
                     <div class="task-content">
                         <div class="task-checkbox ${task.completed ? 'checked' : ''}"
                              onclick="taskFlow.toggleTask(${task.id})">
                         </div>
                         <span class="task-text">${this.escapeHtml(task.text)}</span>
+                        <span class="priority-badge priority-${task.priority}">
+                            ${this.getPriorityIcon(task.priority)} ${task.priority.charAt(0).toUpperCase() + task.priority.slice(1)}
+                        </span>
                         ${task.dueDate ? `
                             <span class="due-date-badge ${isOverdue ? 'overdue' : ''} ${isDueToday ? 'due-today' : ''}">
                                 📅 ${dueDateText}
@@ -262,11 +289,13 @@ class TaskFlow {
         const completedTasks = this.tasks.filter(task => task.completed).length;
         const pendingTasks = totalTasks - completedTasks;
         const overdueTasks = this.tasks.filter(task => this.isOverdue(task)).length;
+        const highPriorityTasks = this.tasks.filter(task => task.priority === 'high' && !task.completed).length;
 
         document.getElementById('totalTasks').textContent = totalTasks;
         document.getElementById('completedTasks').textContent = completedTasks;
         document.getElementById('pendingTasks').textContent = pendingTasks;
         document.getElementById('overdueTasks').textContent = overdueTasks;
+        document.getElementById('highPriorityTasks').textContent = highPriorityTasks;
 
         // Update task count in header
         const taskCount = document.getElementById('taskCount');
@@ -322,9 +351,10 @@ class TaskFlow {
             const saved = localStorage.getItem('taskflow_tasks');
             const tasks = saved ? JSON.parse(saved) : [];
 
-            // Add default due date to existing tasks for backward compatibility
+            // Add default priority and due date to existing tasks for backward compatibility
             return tasks.map(task => ({
                 ...task,
+                priority: task.priority || 'medium',
                 dueDate: task.dueDate || null
             }));
         } catch (error) {
@@ -439,6 +469,9 @@ class TaskFlow {
             dueToday: this.tasks.filter(t => t.dueDate === today && !t.completed).length,
             overdue: this.tasks.filter(t => this.isOverdue(t)).length,
             upcoming: this.tasks.filter(t => t.dueDate && t.dueDate > today && !t.completed).length,
+            highPriority: this.tasks.filter(t => t.priority === 'high' && !t.completed).length,
+            mediumPriority: this.tasks.filter(t => t.priority === 'medium' && !t.completed).length,
+            lowPriority: this.tasks.filter(t => t.priority === 'low' && !t.completed).length,
             createdToday: this.tasks.filter(t => {
                 const taskDate = new Date(t.createdAt);
                 return taskDate.toDateString() === now.toDateString();
