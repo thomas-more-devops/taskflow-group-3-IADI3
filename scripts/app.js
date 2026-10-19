@@ -69,7 +69,11 @@ class TaskFlow {
 
         this.tasks.push(newTask);
         this.saveTasks();
-        this.renderTasks();
+        if (this.currentCategoryFilter !== 'all' && this.currentCategoryFilter !== category) {
+            this.setCategoryFilter('all');
+        } else {
+            this.renderTasks();
+        }
         this.updateStats();
 
         taskInput.value = '';
@@ -178,6 +182,13 @@ class TaskFlow {
         const filteredTasks = this.getFilteredTasks();
 
         if (filteredTasks.length === 0) {
+            const hasCategoryFilter = this.currentCategoryFilter !== 'all';
+            emptyState.querySelector('h3').textContent = hasCategoryFilter
+                ? 'No tasks in this category'
+                : 'No tasks yet';
+            emptyState.querySelector('p').textContent = hasCategoryFilter
+                ? 'Choose another category or add a task above.'
+                : 'Add your first task above to get started!';
             tasksList.style.display = 'none';
             emptyState.style.display = 'block';
             return;
@@ -308,12 +319,14 @@ class TaskFlow {
         try {
             const saved = localStorage.getItem('taskflow_tasks');
             const tasks = saved ? JSON.parse(saved) : [];
+            const validCategories = ['work', 'personal', 'shopping', 'health', 'study'];
+            const validPriorities = ['high', 'medium', 'low'];
 
-            // Add default category to existing tasks for backward compatibility
+            // Migrate missing or invalid values from saved tasks to safe defaults.
             return tasks.map(task => ({
                 ...task,
-                category: task.category || 'personal',
-                priority: task.priority || 'medium'
+                category: validCategories.includes(task.category) ? task.category : 'personal',
+                priority: validPriorities.includes(task.priority) ? task.priority : 'medium'
             }));
         } catch (error) {
             console.error('Failed to load tasks:', error);
