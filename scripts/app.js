@@ -82,7 +82,9 @@ class TaskFlow {
 
     addTask() {
         const taskInput = document.getElementById('taskInput');
+        const prioritySelect = document.getElementById('prioritySelect');
         const taskText = taskInput.value.trim();
+        const priority = prioritySelect.value;
 
         if (taskText === '') {
             this.showNotification('Please enter a task description', 'warning');
@@ -93,6 +95,7 @@ class TaskFlow {
         const newTask = {
             id: this.taskIdCounter++,
             text: taskText,
+            priority: priority,
             completed: false,
             createdAt: new Date().toISOString(),
             completedAt: null
@@ -104,6 +107,7 @@ class TaskFlow {
         this.updateStats();
 
         taskInput.value = '';
+        prioritySelect.value = 'medium';
         taskInput.focus();
 
         this.showNotification('Task added successfully!', 'success');
@@ -144,6 +148,20 @@ class TaskFlow {
                 this.showNotification('Task updated successfully!', 'success');
             }
         }
+    }
+
+    getPriorityValue(priority) {
+        const priorities = { high: 3, medium: 2, low: 1 };
+        return priorities[priority] || 2;
+    }
+
+    getPriorityIcon(priority) {
+        const icons = {
+            high: '🔥',
+            medium: '⚡',
+            low: '📌'
+        };
+        return icons[priority] || '⚡';
     }
 
     setFilter(filter) {
@@ -228,6 +246,18 @@ class TaskFlow {
                 return sortedTasks.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
             case 'created-asc':
                 return sortedTasks.sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
+            case 'priority':
+                // Same order as the priority system: pending first, then high to low priority, then newest
+                return sortedTasks.sort((a, b) => {
+                    if (a.completed !== b.completed) {
+                        return a.completed - b.completed;
+                    }
+                    const priorityDiff = this.getPriorityValue(b.priority) - this.getPriorityValue(a.priority);
+                    if (priorityDiff !== 0) {
+                        return priorityDiff;
+                    }
+                    return new Date(b.createdAt) - new Date(a.createdAt);
+                });
             case 'alphabetical':
                 return sortedTasks.sort((a, b) => a.text.localeCompare(b.text));
             case 'completion':
@@ -296,12 +326,15 @@ class TaskFlow {
         tasksList.style.display = 'flex';
 
         tasksList.innerHTML = sortedTasks.map(task => `
-            <div class="task-item ${task.completed ? 'completed' : ''}" data-task-id="${task.id}">
+            <div class="task-item ${task.completed ? 'completed' : ''} priority-${task.priority}" data-task-id="${task.id}">
                 <div class="task-content">
                     <div class="task-checkbox ${task.completed ? 'checked' : ''}"
                          onclick="taskFlow.toggleTask(${task.id})">
                     </div>
                     <span class="task-text">${this.highlightSearchTerm(task.text)}</span>
+                    <span class="priority-badge priority-${task.priority}">
+                        ${this.getPriorityIcon(task.priority)} ${task.priority.charAt(0).toUpperCase() + task.priority.slice(1)}
+                    </span>
                     <span class="task-meta">
                         ${new Date(task.createdAt).toLocaleDateString()}
                     </span>
@@ -325,11 +358,13 @@ class TaskFlow {
         const completedTasks = this.tasks.filter(task => task.completed).length;
         const pendingTasks = totalTasks - completedTasks;
         const filteredTasks = this.getFilteredTasks().length;
+        const highPriorityTasks = this.tasks.filter(task => task.priority === 'high' && !task.completed).length;
 
         document.getElementById('totalTasks').textContent = totalTasks;
         document.getElementById('completedTasks').textContent = completedTasks;
         document.getElementById('pendingTasks').textContent = pendingTasks;
         document.getElementById('filteredTasks').textContent = filteredTasks;
+        document.getElementById('highPriorityTasks').textContent = highPriorityTasks;
 
         // Update task count in header
         const taskCount = document.getElementById('taskCount');
@@ -349,7 +384,13 @@ class TaskFlow {
     loadTasks() {
         try {
             const saved = localStorage.getItem('taskflow_tasks');
-            return saved ? JSON.parse(saved) : [];
+            const tasks = saved ? JSON.parse(saved) : [];
+
+            // Add default priority to existing tasks for backward compatibility
+            return tasks.map(task => ({
+                ...task,
+                priority: task.priority || 'medium'
+            }));
         } catch (error) {
             console.error('Failed to load tasks:', error);
             return [];
@@ -457,6 +498,9 @@ class TaskFlow {
             total: this.tasks.length,
             completed: this.tasks.filter(t => t.completed).length,
             pending: this.tasks.filter(t => !t.completed).length,
+            highPriority: this.tasks.filter(t => t.priority === 'high' && !t.completed).length,
+            mediumPriority: this.tasks.filter(t => t.priority === 'medium' && !t.completed).length,
+            lowPriority: this.tasks.filter(t => t.priority === 'low' && !t.completed).length,
             filtered: this.getFilteredTasks().length,
             searchQuery: this.searchQuery,
             currentFilter: this.currentFilter,
