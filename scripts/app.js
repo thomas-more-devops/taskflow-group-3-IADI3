@@ -3,7 +3,7 @@ class TaskFlow {
         this.tasks = this.loadTasks();
         this.taskIdCounter = this.getNextTaskId();
         this.currentFilter = 'all';
-        this.currentSort = 'created-desc';
+        this.currentSort = 'priority';
         this.searchQuery = '';
         this.initializeApp();
         this.bindEvents();
@@ -44,6 +44,7 @@ class TaskFlow {
             this.searchQuery = e.target.value.toLowerCase();
             this.renderTasks();
             this.updateSearchResults();
+            this.updateStats();
         });
 
         clearSearch.addEventListener('click', () => {
@@ -51,12 +52,13 @@ class TaskFlow {
             this.searchQuery = '';
             this.renderTasks();
             this.updateSearchResults();
+            this.updateStats();
         });
 
         // Filter buttons
         document.querySelectorAll('.filter-btn').forEach(btn => {
             btn.addEventListener('click', (e) => {
-                this.setFilter(e.target.dataset.filter);
+                this.setFilter(e.currentTarget.dataset.filter);
             });
         });
 
@@ -175,6 +177,7 @@ class TaskFlow {
 
         this.renderTasks();
         this.updateSearchResults();
+        this.updateStats();
     }
 
     toggleAdvancedPanel() {
@@ -199,11 +202,12 @@ class TaskFlow {
         this.setFilter('all');
 
         // Reset sort
-        this.currentSort = 'created-desc';
-        document.getElementById('sortSelect').value = 'created-desc';
+        this.currentSort = 'priority';
+        document.getElementById('sortSelect').value = 'priority';
 
         this.renderTasks();
         this.updateSearchResults();
+        this.updateStats();
         this.showNotification('All filters cleared', 'info');
     }
 
@@ -214,7 +218,6 @@ class TaskFlow {
 
     matchesFilter(task) {
         const now = new Date();
-        const today = now.toDateString();
         const taskCreated = new Date(task.createdAt);
         const isRecent = (now - taskCreated) < (24 * 60 * 60 * 1000); // Last 24 hours
 
@@ -275,9 +278,15 @@ class TaskFlow {
     highlightSearchTerm(text) {
         if (!this.searchQuery) return this.escapeHtml(text);
 
+        // Split the raw text around the matches and escape each piece separately,
+        // so the highlight can never cut an HTML entity like &amp; in half
         const regex = new RegExp(`(${this.escapeRegex(this.searchQuery)})`, 'gi');
-        const escapedText = this.escapeHtml(text);
-        return escapedText.replace(regex, '<mark class="search-highlight">$1</mark>');
+        return text
+            .split(regex)
+            .map((part, index) => index % 2 === 1
+                ? `<mark class="search-highlight">${this.escapeHtml(part)}</mark>`
+                : this.escapeHtml(part))
+            .join('');
     }
 
     escapeRegex(string) {
