@@ -2,8 +2,11 @@ class TaskFlow {
     constructor() {
         this.tasks = this.loadTasks();
         this.taskIdCounter = this.getNextTaskId();
+        this.currentFilter = 'all';
         this.currentDueDateFilter = 'all';
         this.currentCategoryFilter = 'all';
+        this.currentSort = 'priority';
+        this.searchQuery = '';
         this.initializeApp();
         this.bindEvents();
         this.renderTasks();
@@ -33,6 +36,11 @@ class TaskFlow {
     bindEvents() {
         const addTaskBtn = document.getElementById('addTaskBtn');
         const taskInput = document.getElementById('taskInput');
+        const searchInput = document.getElementById('searchInput');
+        const clearSearch = document.getElementById('clearSearch');
+        const sortSelect = document.getElementById('sortSelect');
+        const toggleAdvanced = document.getElementById('toggleAdvanced');
+        const clearAllFilters = document.getElementById('clearAllFilters');
 
         addTaskBtn.addEventListener('click', () => this.addTask());
 
@@ -40,6 +48,47 @@ class TaskFlow {
             if (e.key === 'Enter') {
                 this.addTask();
             }
+        });
+
+        // Search functionality (debounced so the list is not rebuilt on every keystroke)
+        searchInput.addEventListener('input', (e) => {
+            this.searchQuery = e.target.value.toLowerCase();
+            clearTimeout(this.searchTimeout);
+            this.searchTimeout = setTimeout(() => {
+                this.renderTasks();
+                this.updateStats();
+            }, 150);
+        });
+
+        clearSearch.addEventListener('click', () => {
+            clearTimeout(this.searchTimeout);
+            searchInput.value = '';
+            this.searchQuery = '';
+            this.renderTasks();
+            this.updateStats();
+        });
+
+        // Filter buttons
+        document.querySelectorAll('.filter-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                this.setFilter(e.currentTarget.dataset.filter);
+            });
+        });
+
+        // Sort functionality
+        sortSelect.addEventListener('change', (e) => {
+            this.currentSort = e.target.value;
+            this.renderTasks();
+        });
+
+        // Advanced panel toggle
+        toggleAdvanced.addEventListener('click', () => {
+            this.toggleAdvancedPanel();
+        });
+
+        // Clear all filters
+        clearAllFilters.addEventListener('click', () => {
+            this.clearAllFilters();
         });
 
         // Due date filter buttons
@@ -152,6 +201,7 @@ class TaskFlow {
         document.querySelector(`.due-date-filter-btn[data-filter="${filter}"]`).classList.add('active');
 
         this.renderTasks();
+        this.updateStats();
     }
 
     setCategoryFilter(category) {
@@ -161,9 +211,90 @@ class TaskFlow {
         document.querySelectorAll('.category-filter-btn').forEach(btn => {
             btn.classList.remove('active');
         });
-        document.querySelector(`[data-category="${category}"]`).classList.add('active');
+        document.querySelector(`.category-filter-btn[data-category="${category}"]`).classList.add('active');
 
         this.renderTasks();
+        this.updateStats();
+    }
+
+    setFilter(filter) {
+        this.currentFilter = filter;
+
+        // Update button states
+        document.querySelectorAll('.filter-btn').forEach(btn => {
+            btn.classList.remove('active');
+        });
+        // Scoped to .filter-btn so it never matches the due date filter buttons
+        document.querySelector(`.filter-btn[data-filter="${filter}"]`).classList.add('active');
+
+        this.renderTasks();
+        this.updateStats();
+    }
+
+    toggleAdvancedPanel() {
+        const panel = document.getElementById('advancedPanel');
+        const toggleIcon = document.querySelector('.toggle-icon');
+
+        const toggleButton = document.getElementById('toggleAdvanced');
+
+        if (panel.style.display === 'none' || !panel.style.display) {
+            panel.style.display = 'block';
+            toggleIcon.textContent = '▲';
+            toggleButton.setAttribute('aria-expanded', 'true');
+        } else {
+            panel.style.display = 'none';
+            toggleIcon.textContent = '▼';
+            toggleButton.setAttribute('aria-expanded', 'false');
+        }
+    }
+
+    clearAllFilters() {
+        // Reset search
+        clearTimeout(this.searchTimeout);
+        document.getElementById('searchInput').value = '';
+        this.searchQuery = '';
+
+        // Reset sort
+        this.currentSort = 'priority';
+        document.getElementById('sortSelect').value = 'priority';
+
+        // Reset category and due date filters (button states only, the render happens once below)
+        this.currentCategoryFilter = 'all';
+        this.currentDueDateFilter = 'all';
+        document.querySelectorAll('.category-filter-btn, .due-date-filter-btn').forEach(btn => {
+            btn.classList.remove('active');
+        });
+        document.querySelector('.category-filter-btn[data-category="all"]').classList.add('active');
+        document.querySelector('.due-date-filter-btn[data-filter="all"]').classList.add('active');
+
+        // Reset the status filter (setFilter() renders the list and updates the stats once)
+        this.setFilter('all');
+
+        this.showNotification('All filters cleared', 'info');
+    }
+
+    matchesSearch(task) {
+        if (!this.searchQuery) return true;
+        return task.text.toLowerCase().includes(this.searchQuery);
+    }
+
+    matchesFilter(task) {
+        const now = new Date();
+        const taskCreated = new Date(task.createdAt);
+        const isRecent = (now - taskCreated) < (24 * 60 * 60 * 1000); // Last 24 hours
+
+        switch (this.currentFilter) {
+            case 'all':
+                return true;
+            case 'completed':
+                return task.completed;
+            case 'pending':
+                return !task.completed;
+            case 'recent':
+                return isRecent;
+            default:
+                return true;
+        }
     }
 
     matchesCategoryFilter(task) {
@@ -191,10 +322,20 @@ class TaskFlow {
     }
 
     getFilteredTasks() {
-        // Both filters apply at the same time
+        // Search, status, category and due date filters all apply at the same time
         return this.tasks.filter(task =>
-            this.matchesCategoryFilter(task) && this.matchesDueDateFilter(task)
+            this.matchesSearch(task) &&
+            this.matchesFilter(task) &&
+            this.matchesCategoryFilter(task) &&
+            this.matchesDueDateFilter(task)
         );
+    }
+
+    hasActiveFilters() {
+        return Boolean(this.searchQuery) ||
+            this.currentFilter !== 'all' ||
+            this.currentCategoryFilter !== 'all' ||
+            this.currentDueDateFilter !== 'all';
     }
 
     getCategoryIcon(category) {
@@ -268,57 +409,119 @@ class TaskFlow {
         return icons[priority] || '⚡';
     }
 
+    // Default sort shared by the priority system, due dates and categories:
+    // pending first, then priority (high to low), due date, category and newest first
+    compareByPriority(a, b) {
+        if (a.completed !== b.completed) {
+            return a.completed - b.completed;
+        }
+
+        const priorityDiff = this.getPriorityValue(b.priority) - this.getPriorityValue(a.priority);
+        if (priorityDiff !== 0) {
+            return priorityDiff;
+        }
+
+        if (a.dueDate && b.dueDate) {
+            if (a.dueDate !== b.dueDate) {
+                return a.dueDate < b.dueDate ? -1 : 1;
+            }
+        } else if (a.dueDate) {
+            return -1;
+        } else if (b.dueDate) {
+            return 1;
+        }
+
+        if (a.category !== b.category) {
+            return a.category.localeCompare(b.category);
+        }
+
+        return new Date(b.createdAt) - new Date(a.createdAt);
+    }
+
+    getSortedTasks(tasks) {
+        const sortedTasks = [...tasks];
+
+        switch (this.currentSort) {
+            case 'created-desc':
+                return sortedTasks.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+            case 'created-asc':
+                return sortedTasks.sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
+            case 'priority':
+                // Default order of the app: pending first, then priority, due date, category and newest
+                return sortedTasks.sort((a, b) => this.compareByPriority(a, b));
+            case 'alphabetical':
+                return sortedTasks.sort((a, b) => a.text.localeCompare(b.text));
+            case 'completion':
+                return sortedTasks.sort((a, b) => {
+                    if (a.completed !== b.completed) {
+                        return a.completed - b.completed;
+                    }
+                    return new Date(b.createdAt) - new Date(a.createdAt);
+                });
+            default:
+                return sortedTasks;
+        }
+    }
+
+    highlightSearchTerm(text) {
+        if (!this.searchQuery) return this.escapeHtml(text);
+
+        // Split the raw text around the matches and escape each piece separately,
+        // so the highlight can never cut an HTML entity like &amp; in half
+        const regex = new RegExp(`(${this.escapeRegex(this.searchQuery)})`, 'gi');
+        return text
+            .split(regex)
+            .map((part, index) => index % 2 === 1
+                ? `<mark class="search-highlight">${this.escapeHtml(part)}</mark>`
+                : this.escapeHtml(part))
+            .join('');
+    }
+
+    escapeRegex(string) {
+        return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    }
+
+    updateSearchResults(filteredTasks = this.getFilteredTasks()) {
+        const searchResults = document.getElementById('searchResults');
+        const totalTasks = this.tasks.length;
+
+        if (this.hasActiveFilters()) {
+            searchResults.textContent = `Showing ${filteredTasks.length} of ${totalTasks}`;
+            searchResults.style.display = 'inline';
+        } else {
+            searchResults.style.display = 'none';
+        }
+    }
+
     renderTasks() {
         const tasksList = document.getElementById('tasksList');
         const emptyState = document.getElementById('emptyState');
+        const noResults = document.getElementById('noResults');
         const filteredTasks = this.getFilteredTasks();
+        const sortedTasks = this.getSortedTasks(filteredTasks);
 
-        if (filteredTasks.length === 0) {
-            const hasFilter = this.currentCategoryFilter !== 'all' || this.currentDueDateFilter !== 'all';
-            emptyState.querySelector('h3').textContent = hasFilter
-                ? 'No tasks match these filters'
-                : 'No tasks yet';
-            emptyState.querySelector('p').textContent = hasFilter
-                ? 'Choose another filter or add a task above.'
-                : 'Add your first task above to get started!';
+        // Reuse the filtered list for the "Showing X of Y" text instead of filtering again
+        this.updateSearchResults(filteredTasks);
+
+        // Hide both states initially
+        emptyState.style.display = 'none';
+        noResults.style.display = 'none';
+
+        if (this.tasks.length === 0) {
+            // No tasks at all
             tasksList.style.display = 'none';
             emptyState.style.display = 'block';
             return;
         }
 
+        if (sortedTasks.length === 0) {
+            // Tasks exist but none match the search or filters
+            tasksList.style.display = 'none';
+            noResults.style.display = 'block';
+            return;
+        }
+
         tasksList.style.display = 'flex';
-        emptyState.style.display = 'none';
-
-        // Sort tasks: incomplete first, then by priority (high to low), then by due date, then by category, then by creation date
-        const sortedTasks = [...filteredTasks].sort((a, b) => {
-            // First sort by completion status (incomplete first)
-            if (a.completed !== b.completed) {
-                return a.completed - b.completed;
-            }
-
-            // Then sort by priority (high to low)
-            const priorityDiff = this.getPriorityValue(b.priority) - this.getPriorityValue(a.priority);
-            if (priorityDiff !== 0) {
-                return priorityDiff;
-            }
-
-            // Then sort by due date (overdue first, then by date)
-            if (a.dueDate && b.dueDate) {
-                return new Date(a.dueDate) - new Date(b.dueDate);
-            } else if (a.dueDate) {
-                return -1;
-            } else if (b.dueDate) {
-                return 1;
-            }
-
-            // Then sort by category
-            if (a.category !== b.category) {
-                return a.category.localeCompare(b.category);
-            }
-
-            // Finally sort by creation date (newest first)
-            return new Date(b.createdAt) - new Date(a.createdAt);
-        });
 
         tasksList.innerHTML = sortedTasks.map(task => {
             const isOverdue = this.isOverdue(task);
@@ -331,7 +534,7 @@ class TaskFlow {
                         <div class="task-checkbox ${task.completed ? 'checked' : ''}"
                              onclick="taskFlow.toggleTask(${task.id})">
                         </div>
-                        <span class="task-text">${this.escapeHtml(task.text)}</span>
+                        <span class="task-text">${this.highlightSearchTerm(task.text)}</span>
                         <span class="category-badge category-${task.category}" style="background-color: ${this.getCategoryColor(task.category)}">
                             ${this.getCategoryIcon(task.category)} ${task.category.charAt(0).toUpperCase() + task.category.slice(1)}
                         </span>
@@ -343,6 +546,9 @@ class TaskFlow {
                                 📅 ${dueDateText}
                             </span>
                         ` : ''}
+                        <span class="task-meta">
+                            ${new Date(task.createdAt).toLocaleDateString()}
+                        </span>
                     </div>
                     <div class="task-actions">
                         <button class="task-btn edit-btn" onclick="taskFlow.editTask(${task.id})" title="Edit task">
@@ -363,6 +569,7 @@ class TaskFlow {
         const pendingTasks = totalTasks - completedTasks;
         const categoriesUsed = new Set(this.tasks.map(task => task.category)).size;
         const overdueTasks = this.tasks.filter(task => this.isOverdue(task)).length;
+        const filteredTasks = this.getFilteredTasks().length;
         const highPriorityTasks = this.tasks.filter(task => task.priority === 'high' && !task.completed).length;
 
         document.getElementById('totalTasks').textContent = totalTasks;
@@ -370,6 +577,7 @@ class TaskFlow {
         document.getElementById('pendingTasks').textContent = pendingTasks;
         document.getElementById('categoriesUsed').textContent = categoriesUsed;
         document.getElementById('overdueTasks').textContent = overdueTasks;
+        document.getElementById('filteredTasks').textContent = filteredTasks;
         document.getElementById('highPriorityTasks').textContent = highPriorityTasks;
 
         // Update task count in header
@@ -605,6 +813,10 @@ class TaskFlow {
             highPriority: this.tasks.filter(t => t.priority === 'high' && !t.completed).length,
             mediumPriority: this.tasks.filter(t => t.priority === 'medium' && !t.completed).length,
             lowPriority: this.tasks.filter(t => t.priority === 'low' && !t.completed).length,
+            filtered: this.getFilteredTasks().length,
+            searchQuery: this.searchQuery,
+            currentFilter: this.currentFilter,
+            currentSort: this.currentSort,
             createdToday: this.tasks.filter(t => {
                 const taskDate = new Date(t.createdAt);
                 return taskDate.toDateString() === now.toDateString();
@@ -613,9 +825,59 @@ class TaskFlow {
                 if (!t.completedAt) return false;
                 const completedDate = new Date(t.completedAt);
                 return completedDate.toDateString() === now.toDateString();
+            }).length,
+            recent: this.tasks.filter(t => {
+                const taskCreated = new Date(t.createdAt);
+                return (now - taskCreated) < (24 * 60 * 60 * 1000);
             }).length
         };
         return stats;
+    }
+
+    // Advanced search functionality
+    searchByKeyword(keyword) {
+        this.searchQuery = keyword.toLowerCase();
+        document.getElementById('searchInput').value = keyword;
+        this.renderTasks();
+        this.updateStats();
+    }
+
+    // Bulk operations
+    markAllCompleted() {
+        const filteredTasks = this.getFilteredTasks();
+        const pendingTasks = filteredTasks.filter(task => !task.completed);
+
+        if (pendingTasks.length === 0) {
+            this.showNotification('No pending tasks to complete', 'info');
+            return;
+        }
+
+        pendingTasks.forEach(task => {
+            task.completed = true;
+            task.completedAt = new Date().toISOString();
+        });
+
+        this.saveTasks();
+        this.renderTasks();
+        this.updateStats();
+        this.showNotification(`Marked ${pendingTasks.length} tasks as completed`, 'success');
+    }
+
+    deleteCompleted() {
+        const completedTasks = this.tasks.filter(task => task.completed);
+
+        if (completedTasks.length === 0) {
+            this.showNotification('No completed tasks to delete', 'info');
+            return;
+        }
+
+        if (confirm(`Delete ${completedTasks.length} completed tasks? This cannot be undone.`)) {
+            this.tasks = this.tasks.filter(task => !task.completed);
+            this.saveTasks();
+            this.renderTasks();
+            this.updateStats();
+            this.showNotification(`Deleted ${completedTasks.length} completed tasks`, 'success');
+        }
     }
 }
 
