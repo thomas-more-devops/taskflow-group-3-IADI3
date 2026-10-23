@@ -3,6 +3,7 @@ class TaskFlow {
         this.tasks = this.loadTasks();
         this.taskIdCounter = this.getNextTaskId();
         this.currentDueDateFilter = 'all';
+        this.currentCategoryFilter = 'all';
         this.initializeApp();
         this.bindEvents();
         this.renderTasks();
@@ -48,15 +49,24 @@ class TaskFlow {
             });
         });
 
+        // Category filter buttons
+        document.querySelectorAll('.category-filter-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                this.setCategoryFilter(e.currentTarget.dataset.category);
+            });
+        });
+
         // Focus on input when page loads
         taskInput.focus();
     }
 
     addTask() {
         const taskInput = document.getElementById('taskInput');
+        const categorySelect = document.getElementById('categorySelect');
         const dueDateInput = document.getElementById('dueDateInput');
         const prioritySelect = document.getElementById('prioritySelect');
         const taskText = taskInput.value.trim();
+        const category = categorySelect.value;
         const dueDate = dueDateInput.value;
         const priority = prioritySelect.value;
 
@@ -69,6 +79,7 @@ class TaskFlow {
         const newTask = {
             id: this.taskIdCounter++,
             text: taskText,
+            category: category,
             dueDate: dueDate || null,
             priority: priority,
             completed: false,
@@ -78,10 +89,15 @@ class TaskFlow {
 
         this.tasks.push(newTask);
         this.saveTasks();
-        this.renderTasks();
+        if (this.currentCategoryFilter !== 'all' && this.currentCategoryFilter !== category) {
+            this.setCategoryFilter('all');
+        } else {
+            this.renderTasks();
+        }
         this.updateStats();
 
         taskInput.value = '';
+        categorySelect.value = 'personal';
         dueDateInput.value = '';
         prioritySelect.value = 'medium';
         taskInput.focus();
@@ -138,6 +154,25 @@ class TaskFlow {
         this.renderTasks();
     }
 
+    setCategoryFilter(category) {
+        this.currentCategoryFilter = category;
+
+        // Update button states
+        document.querySelectorAll('.category-filter-btn').forEach(btn => {
+            btn.classList.remove('active');
+        });
+        document.querySelector(`[data-category="${category}"]`).classList.add('active');
+
+        this.renderTasks();
+    }
+
+    matchesCategoryFilter(task) {
+        if (this.currentCategoryFilter === 'all') {
+            return true;
+        }
+        return task.category === this.currentCategoryFilter;
+    }
+
     matchesDueDateFilter(task) {
         const today = this.getLocalDateString();
 
@@ -156,7 +191,32 @@ class TaskFlow {
     }
 
     getFilteredTasks() {
-        return this.tasks.filter(task => this.matchesDueDateFilter(task));
+        // Both filters apply at the same time
+        return this.tasks.filter(task =>
+            this.matchesCategoryFilter(task) && this.matchesDueDateFilter(task)
+        );
+    }
+
+    getCategoryIcon(category) {
+        const icons = {
+            work: '💼',
+            personal: '📝',
+            shopping: '🛒',
+            health: '🏥',
+            study: '📚'
+        };
+        return icons[category] || '📝';
+    }
+
+    getCategoryColor(category) {
+        const colors = {
+            work: '#3182ce',
+            personal: '#38a169',
+            shopping: '#ed8936',
+            health: '#e53e3e',
+            study: '#805ad5'
+        };
+        return colors[category] || '#38a169';
     }
 
     isOverdue(task) {
@@ -204,11 +264,7 @@ class TaskFlow {
     }
 
     getPriorityIcon(priority) {
-        const icons = {
-            high: '🔥',
-            medium: '⚡',
-            low: '📌'
-        };
+        const icons = { high: '🔥', medium: '⚡', low: '📌' };
         return icons[priority] || '⚡';
     }
 
@@ -218,6 +274,13 @@ class TaskFlow {
         const filteredTasks = this.getFilteredTasks();
 
         if (filteredTasks.length === 0) {
+            const hasFilter = this.currentCategoryFilter !== 'all' || this.currentDueDateFilter !== 'all';
+            emptyState.querySelector('h3').textContent = hasFilter
+                ? 'No tasks match these filters'
+                : 'No tasks yet';
+            emptyState.querySelector('p').textContent = hasFilter
+                ? 'Choose another filter or add a task above.'
+                : 'Add your first task above to get started!';
             tasksList.style.display = 'none';
             emptyState.style.display = 'block';
             return;
@@ -226,7 +289,7 @@ class TaskFlow {
         tasksList.style.display = 'flex';
         emptyState.style.display = 'none';
 
-        // Sort tasks: incomplete first, then by priority (high to low), then by due date, then by creation date
+        // Sort tasks: incomplete first, then by priority (high to low), then by due date, then by category, then by creation date
         const sortedTasks = [...filteredTasks].sort((a, b) => {
             // First sort by completion status (incomplete first)
             if (a.completed !== b.completed) {
@@ -248,6 +311,11 @@ class TaskFlow {
                 return 1;
             }
 
+            // Then sort by category
+            if (a.category !== b.category) {
+                return a.category.localeCompare(b.category);
+            }
+
             // Finally sort by creation date (newest first)
             return new Date(b.createdAt) - new Date(a.createdAt);
         });
@@ -258,12 +326,15 @@ class TaskFlow {
             const dueDateText = this.formatDueDate(task.dueDate);
 
             return `
-                <div class="task-item ${task.completed ? 'completed' : ''} priority-${task.priority} ${isOverdue ? 'overdue' : ''} ${isDueToday ? 'due-today' : ''}" data-task-id="${task.id}">
+                <div class="task-item ${task.completed ? 'completed' : ''} category-${task.category} priority-${task.priority} ${isOverdue ? 'overdue' : ''} ${isDueToday ? 'due-today' : ''}" data-task-id="${task.id}">
                     <div class="task-content">
                         <div class="task-checkbox ${task.completed ? 'checked' : ''}"
                              onclick="taskFlow.toggleTask(${task.id})">
                         </div>
                         <span class="task-text">${this.escapeHtml(task.text)}</span>
+                        <span class="category-badge category-${task.category}" style="background-color: ${this.getCategoryColor(task.category)}">
+                            ${this.getCategoryIcon(task.category)} ${task.category.charAt(0).toUpperCase() + task.category.slice(1)}
+                        </span>
                         <span class="priority-badge priority-${task.priority}">
                             ${this.getPriorityIcon(task.priority)} ${task.priority.charAt(0).toUpperCase() + task.priority.slice(1)}
                         </span>
@@ -290,12 +361,14 @@ class TaskFlow {
         const totalTasks = this.tasks.length;
         const completedTasks = this.tasks.filter(task => task.completed).length;
         const pendingTasks = totalTasks - completedTasks;
+        const categoriesUsed = new Set(this.tasks.map(task => task.category)).size;
         const overdueTasks = this.tasks.filter(task => this.isOverdue(task)).length;
         const highPriorityTasks = this.tasks.filter(task => task.priority === 'high' && !task.completed).length;
 
         document.getElementById('totalTasks').textContent = totalTasks;
         document.getElementById('completedTasks').textContent = completedTasks;
         document.getElementById('pendingTasks').textContent = pendingTasks;
+        document.getElementById('categoriesUsed').textContent = categoriesUsed;
         document.getElementById('overdueTasks').textContent = overdueTasks;
         document.getElementById('highPriorityTasks').textContent = highPriorityTasks;
 
@@ -303,8 +376,49 @@ class TaskFlow {
         const taskCount = document.getElementById('taskCount');
         taskCount.textContent = `${totalTasks} ${totalTasks === 1 ? 'task' : 'tasks'}`;
 
-        // Update due date statistics
+        // Update category and due date statistics
+        this.updateCategoryStats();
         this.updateDueDateStats();
+    }
+
+    updateCategoryStats() {
+        const categoryStats = document.getElementById('categoryStats');
+        const categories = ['work', 'personal', 'shopping', 'health', 'study'];
+
+        const categoryData = categories.map(category => {
+            const total = this.tasks.filter(task => task.category === category).length;
+            const completed = this.tasks.filter(task => task.category === category && task.completed).length;
+            const pending = total - completed;
+
+            return {
+                category,
+                total,
+                completed,
+                pending,
+                icon: this.getCategoryIcon(category),
+                color: this.getCategoryColor(category)
+            };
+        }).filter(data => data.total > 0);
+
+        categoryStats.innerHTML = categoryData.map(data => `
+            <div class="category-stat-item">
+                <div class="category-stat-header">
+                    <span class="category-icon">${data.icon}</span>
+                    <span class="category-name">${data.category.charAt(0).toUpperCase() + data.category.slice(1)}</span>
+                    <span class="category-total">${data.total}</span>
+                </div>
+                <div class="category-progress">
+                    <div class="progress-bar">
+                        <div class="progress-fill" style="width: ${data.total ? (data.completed / data.total) * 100 : 0}%; background-color: ${data.color}"></div>
+                    </div>
+                    <span class="progress-text">${data.completed}/${data.total} completed</span>
+                </div>
+            </div>
+        `).join('');
+
+        if (categoryData.length === 0) {
+            categoryStats.innerHTML = '<p class="no-categories">No tasks with categories yet.</p>';
+        }
     }
 
     updateDueDateStats() {
@@ -355,11 +469,13 @@ class TaskFlow {
 
             // localStorage can be edited by the user, so treat stored values as untrusted:
             // only keep known priorities and well-formed YYYY-MM-DD due dates.
+            const validCategories = ['work', 'personal', 'shopping', 'health', 'study'];
             const validPriorities = ['high', 'medium', 'low'];
             const datePattern = /^\d{4}-\d{2}-\d{2}$/;
 
             return tasks.map(task => ({
                 ...task,
+                category: validCategories.includes(task.category) ? task.category : 'personal',
                 priority: validPriorities.includes(task.priority) ? task.priority : 'medium',
                 dueDate: typeof task.dueDate === 'string' && datePattern.test(task.dueDate) ? task.dueDate : null
             }));
@@ -467,11 +583,22 @@ class TaskFlow {
     getTaskStats() {
         const now = new Date();
         const today = this.getLocalDateString(now);
+        const categoryBreakdown = {};
+
+        ['work', 'personal', 'shopping', 'health', 'study'].forEach(category => {
+            categoryBreakdown[category] = {
+                total: this.tasks.filter(t => t.category === category).length,
+                completed: this.tasks.filter(t => t.category === category && t.completed).length,
+                pending: this.tasks.filter(t => t.category === category && !t.completed).length
+            };
+        });
 
         const stats = {
             total: this.tasks.length,
             completed: this.tasks.filter(t => t.completed).length,
             pending: this.tasks.filter(t => !t.completed).length,
+            categoriesUsed: new Set(this.tasks.map(t => t.category)).size,
+            categoryBreakdown,
             dueToday: this.tasks.filter(t => t.dueDate === today && !t.completed).length,
             overdue: this.tasks.filter(t => this.isOverdue(t)).length,
             upcoming: this.tasks.filter(t => t.dueDate && t.dueDate > today && !t.completed).length,
