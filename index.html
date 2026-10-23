@@ -43,8 +43,8 @@
                 <div class="search-container">
                     <div class="search-input-wrapper">
                         <span class="search-icon">🔍</span>
-                        <input type="text" id="searchInput" placeholder="Search tasks..." class="search-input">
-                        <button id="clearSearch" class="clear-search" title="Clear search">✕</button>
+                        <input type="text" id="searchInput" placeholder="Search tasks..." class="search-input" aria-label="Search tasks">
+                        <button id="clearSearch" class="clear-search" title="Clear search" aria-label="Clear search">✕</button>
                     </div>
                 </div>
 
@@ -72,13 +72,13 @@
                     </div>
 
                     <div class="advanced-filters">
-                        <button id="toggleAdvanced" class="toggle-advanced">
+                        <button id="toggleAdvanced" class="toggle-advanced" aria-expanded="false" aria-controls="advancedPanel">
                             <span>Advanced Options</span>
                             <span class="toggle-icon">▼</span>
                         </button>
                         <div id="advancedPanel" class="advanced-panel">
                             <div class="filter-group">
-                                <label>Sort by:</label>
+                                <label for="sortSelect">Sort by:</label>
                                 <select id="sortSelect" class="sort-select">
                                     <option value="priority">Priority (High to Low)</option>
                                     <option value="created-desc">Newest First</option>

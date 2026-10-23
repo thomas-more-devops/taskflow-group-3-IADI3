@@ -39,19 +39,21 @@ class TaskFlow {
             }
         });
 
-        // Search functionality
+        // Search functionality (debounced so the list is not rebuilt on every keystroke)
         searchInput.addEventListener('input', (e) => {
             this.searchQuery = e.target.value.toLowerCase();
-            this.renderTasks();
-            this.updateSearchResults();
-            this.updateStats();
+            clearTimeout(this.searchTimeout);
+            this.searchTimeout = setTimeout(() => {
+                this.renderTasks();
+                this.updateStats();
+            }, 150);
         });
 
         clearSearch.addEventListener('click', () => {
+            clearTimeout(this.searchTimeout);
             searchInput.value = '';
             this.searchQuery = '';
             this.renderTasks();
-            this.updateSearchResults();
             this.updateStats();
         });
 
@@ -173,10 +175,10 @@ class TaskFlow {
         document.querySelectorAll('.filter-btn').forEach(btn => {
             btn.classList.remove('active');
         });
-        document.querySelector(`[data-filter="${filter}"]`).classList.add('active');
+        // Scoped to .filter-btn so it never matches the due date filter buttons
+        document.querySelector(`.filter-btn[data-filter="${filter}"]`).classList.add('active');
 
         this.renderTasks();
-        this.updateSearchResults();
         this.updateStats();
     }
 
@@ -184,30 +186,32 @@ class TaskFlow {
         const panel = document.getElementById('advancedPanel');
         const toggleIcon = document.querySelector('.toggle-icon');
 
+        const toggleButton = document.getElementById('toggleAdvanced');
+
         if (panel.style.display === 'none' || !panel.style.display) {
             panel.style.display = 'block';
             toggleIcon.textContent = '▲';
+            toggleButton.setAttribute('aria-expanded', 'true');
         } else {
             panel.style.display = 'none';
             toggleIcon.textContent = '▼';
+            toggleButton.setAttribute('aria-expanded', 'false');
         }
     }
 
     clearAllFilters() {
         // Reset search
+        clearTimeout(this.searchTimeout);
         document.getElementById('searchInput').value = '';
         this.searchQuery = '';
-
-        // Reset filters
-        this.setFilter('all');
 
         // Reset sort
         this.currentSort = 'priority';
         document.getElementById('sortSelect').value = 'priority';
 
-        this.renderTasks();
-        this.updateSearchResults();
-        this.updateStats();
+        // Reset filters (setFilter() renders the list and updates the stats once)
+        this.setFilter('all');
+
         this.showNotification('All filters cleared', 'info');
     }
 
@@ -293,9 +297,8 @@ class TaskFlow {
         return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     }
 
-    updateSearchResults() {
+    updateSearchResults(filteredTasks = this.getFilteredTasks()) {
         const searchResults = document.getElementById('searchResults');
-        const filteredTasks = this.getFilteredTasks();
         const totalTasks = this.tasks.length;
 
         if (this.searchQuery || this.currentFilter !== 'all') {
@@ -312,6 +315,9 @@ class TaskFlow {
         const noResults = document.getElementById('noResults');
         const filteredTasks = this.getFilteredTasks();
         const sortedTasks = this.getSortedTasks(filteredTasks);
+
+        // Reuse the filtered list for the "Showing X of Y" text instead of filtering again
+        this.updateSearchResults(filteredTasks);
 
         // Hide both states initially
         emptyState.style.display = 'none';
@@ -358,8 +364,6 @@ class TaskFlow {
                 </div>
             </div>
         `).join('');
-
-        this.updateSearchResults();
     }
 
     updateStats() {
@@ -536,7 +540,7 @@ class TaskFlow {
         this.searchQuery = keyword.toLowerCase();
         document.getElementById('searchInput').value = keyword;
         this.renderTasks();
-        this.updateSearchResults();
+        this.updateStats();
     }
 
     // Bulk operations
