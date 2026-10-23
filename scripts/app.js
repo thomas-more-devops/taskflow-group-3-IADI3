@@ -138,12 +138,15 @@ class TaskFlow {
 
         this.tasks.push(newTask);
         this.saveTasks();
-        if (this.currentCategoryFilter !== 'all' && this.currentCategoryFilter !== category) {
-            this.setCategoryFilter('all');
+
+        // If the search or any filter would hide the new task, reset them so it stays visible
+        const hiddenByFilters = !this.getFilteredTasks().includes(newTask);
+        if (hiddenByFilters) {
+            this.resetFilters();
         } else {
             this.renderTasks();
+            this.updateStats();
         }
-        this.updateStats();
 
         taskInput.value = '';
         categorySelect.value = 'personal';
@@ -151,7 +154,9 @@ class TaskFlow {
         prioritySelect.value = 'medium';
         taskInput.focus();
 
-        this.showNotification('Task added successfully!', 'success');
+        this.showNotification(hiddenByFilters
+            ? 'Task added! Search and filters were cleared so you can see it.'
+            : 'Task added successfully!', 'success');
     }
 
     deleteTask(taskId) {
@@ -249,14 +254,20 @@ class TaskFlow {
     }
 
     clearAllFilters() {
+        // Reset sort
+        this.currentSort = 'priority';
+        document.getElementById('sortSelect').value = 'priority';
+
+        this.resetFilters();
+        this.showNotification('All filters cleared', 'info');
+    }
+
+    // Resets the search and every filter (status, category, due date) but keeps the chosen sort
+    resetFilters() {
         // Reset search
         clearTimeout(this.searchTimeout);
         document.getElementById('searchInput').value = '';
         this.searchQuery = '';
-
-        // Reset sort
-        this.currentSort = 'priority';
-        document.getElementById('sortSelect').value = 'priority';
 
         // Reset category and due date filters (button states only, the render happens once below)
         this.currentCategoryFilter = 'all';
@@ -269,8 +280,6 @@ class TaskFlow {
 
         // Reset the status filter (setFilter() renders the list and updates the stats once)
         this.setFilter('all');
-
-        this.showNotification('All filters cleared', 'info');
     }
 
     matchesSearch(task) {
