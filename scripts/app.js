@@ -2,12 +2,11 @@ class TaskFlow {
     constructor() {
         this.tasks = this.loadTasks();
         this.taskIdCounter = this.getNextTaskId();
-        this.currentFilter = 'all';
+        this.currentDueDateFilter = 'all';
         this.initializeApp();
         this.bindEvents();
         this.renderTasks();
         this.updateStats();
-        this.setDefaultDueDate();
     }
 
     initializeApp() {
@@ -21,12 +20,13 @@ class TaskFlow {
         }
     }
 
-    setDefaultDueDate() {
-        // Set default due date to tomorrow
-        const tomorrow = new Date();
-        tomorrow.setDate(tomorrow.getDate() + 1);
-        const dueDateInput = document.getElementById('dueDateInput');
-        dueDateInput.value = tomorrow.toISOString().split('T')[0];
+    // Returns a date as YYYY-MM-DD in the user's local time zone.
+    // toISOString() uses UTC, which can be one day off around midnight.
+    getLocalDateString(date = new Date()) {
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const day = String(date.getDate()).padStart(2, '0');
+        return `${year}-${month}-${day}`;
     }
 
     bindEvents() {
@@ -44,7 +44,7 @@ class TaskFlow {
         // Due date filter buttons
         document.querySelectorAll('.due-date-filter-btn').forEach(btn => {
             btn.addEventListener('click', (e) => {
-                this.setDueDateFilter(e.target.dataset.filter);
+                this.setDueDateFilter(e.currentTarget.dataset.filter);
             });
         });
 
@@ -82,7 +82,7 @@ class TaskFlow {
         this.updateStats();
 
         taskInput.value = '';
-        this.setDefaultDueDate();
+        dueDateInput.value = '';
         prioritySelect.value = 'medium';
         taskInput.focus();
 
@@ -127,21 +127,21 @@ class TaskFlow {
     }
 
     setDueDateFilter(filter) {
-        this.currentFilter = filter;
+        this.currentDueDateFilter = filter;
 
         // Update button states
         document.querySelectorAll('.due-date-filter-btn').forEach(btn => {
             btn.classList.remove('active');
         });
-        document.querySelector(`[data-filter="${filter}"]`).classList.add('active');
+        document.querySelector(`.due-date-filter-btn[data-filter="${filter}"]`).classList.add('active');
 
         this.renderTasks();
     }
 
     matchesDueDateFilter(task) {
-        const today = new Date().toISOString().split('T')[0];
+        const today = this.getLocalDateString();
 
-        switch (this.currentFilter) {
+        switch (this.currentDueDateFilter) {
             case 'all':
                 return true;
             case 'due-today':
@@ -161,20 +161,22 @@ class TaskFlow {
 
     isOverdue(task) {
         if (!task.dueDate || task.completed) return false;
-        const today = new Date().toISOString().split('T')[0];
+        const today = this.getLocalDateString();
         return task.dueDate < today;
     }
 
     isDueToday(task) {
         if (!task.dueDate) return false;
-        const today = new Date().toISOString().split('T')[0];
+        const today = this.getLocalDateString();
         return task.dueDate === today;
     }
 
     formatDueDate(dateString) {
         if (!dateString) return '';
 
-        const date = new Date(dateString);
+        // Parse YYYY-MM-DD as a local date (new Date('YYYY-MM-DD') is UTC midnight)
+        const [year, month, day] = dateString.split('-').map(Number);
+        const date = new Date(year, month - 1, day);
         const today = new Date();
         const tomorrow = new Date(today);
         tomorrow.setDate(tomorrow.getDate() + 1);
@@ -307,7 +309,7 @@ class TaskFlow {
 
     updateDueDateStats() {
         const dueDateStats = document.getElementById('dueDateStats');
-        const today = new Date().toISOString().split('T')[0];
+        const today = this.getLocalDateString();
 
         const stats = {
             dueToday: this.tasks.filter(task => task.dueDate === today && !task.completed).length,
@@ -351,11 +353,15 @@ class TaskFlow {
             const saved = localStorage.getItem('taskflow_tasks');
             const tasks = saved ? JSON.parse(saved) : [];
 
-            // Add default priority and due date to existing tasks for backward compatibility
+            // localStorage can be edited by the user, so treat stored values as untrusted:
+            // only keep known priorities and well-formed YYYY-MM-DD due dates.
+            const validPriorities = ['high', 'medium', 'low'];
+            const datePattern = /^\d{4}-\d{2}-\d{2}$/;
+
             return tasks.map(task => ({
                 ...task,
-                priority: task.priority || 'medium',
-                dueDate: task.dueDate || null
+                priority: validPriorities.includes(task.priority) ? task.priority : 'medium',
+                dueDate: typeof task.dueDate === 'string' && datePattern.test(task.dueDate) ? task.dueDate : null
             }));
         } catch (error) {
             console.error('Failed to load tasks:', error);
@@ -460,7 +466,7 @@ class TaskFlow {
 
     getTaskStats() {
         const now = new Date();
-        const today = now.toISOString().split('T')[0];
+        const today = this.getLocalDateString(now);
 
         const stats = {
             total: this.tasks.length,
