@@ -2,6 +2,7 @@ class TaskFlow {
     constructor() {
         this.tasks = this.loadTasks();
         this.taskIdCounter = this.getNextTaskId();
+        this.currentDueDateFilter = 'all';
         this.currentCategoryFilter = 'all';
         this.initializeApp();
         this.bindEvents();
@@ -20,6 +21,15 @@ class TaskFlow {
         }
     }
 
+    // Returns a date as YYYY-MM-DD in the user's local time zone.
+    // toISOString() uses UTC, which can be one day off around midnight.
+    getLocalDateString(date = new Date()) {
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const day = String(date.getDate()).padStart(2, '0');
+        return `${year}-${month}-${day}`;
+    }
+
     bindEvents() {
         const addTaskBtn = document.getElementById('addTaskBtn');
         const taskInput = document.getElementById('taskInput');
@@ -30,6 +40,13 @@ class TaskFlow {
             if (e.key === 'Enter') {
                 this.addTask();
             }
+        });
+
+        // Due date filter buttons
+        document.querySelectorAll('.due-date-filter-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                this.setDueDateFilter(e.currentTarget.dataset.filter);
+            });
         });
 
         // Category filter buttons
@@ -46,9 +63,11 @@ class TaskFlow {
     addTask() {
         const taskInput = document.getElementById('taskInput');
         const categorySelect = document.getElementById('categorySelect');
+        const dueDateInput = document.getElementById('dueDateInput');
         const prioritySelect = document.getElementById('prioritySelect');
         const taskText = taskInput.value.trim();
         const category = categorySelect.value;
+        const dueDate = dueDateInput.value;
         const priority = prioritySelect.value;
 
         if (taskText === '') {
@@ -61,6 +80,7 @@ class TaskFlow {
             id: this.taskIdCounter++,
             text: taskText,
             category: category,
+            dueDate: dueDate || null,
             priority: priority,
             completed: false,
             createdAt: new Date().toISOString(),
@@ -78,6 +98,7 @@ class TaskFlow {
 
         taskInput.value = '';
         categorySelect.value = 'personal';
+        dueDateInput.value = '';
         prioritySelect.value = 'medium';
         taskInput.focus();
 
@@ -121,6 +142,18 @@ class TaskFlow {
         }
     }
 
+    setDueDateFilter(filter) {
+        this.currentDueDateFilter = filter;
+
+        // Update button states
+        document.querySelectorAll('.due-date-filter-btn').forEach(btn => {
+            btn.classList.remove('active');
+        });
+        document.querySelector(`.due-date-filter-btn[data-filter="${filter}"]`).classList.add('active');
+
+        this.renderTasks();
+    }
+
     setCategoryFilter(category) {
         this.currentCategoryFilter = category;
 
@@ -140,8 +173,28 @@ class TaskFlow {
         return task.category === this.currentCategoryFilter;
     }
 
+    matchesDueDateFilter(task) {
+        const today = this.getLocalDateString();
+
+        switch (this.currentDueDateFilter) {
+            case 'all':
+                return true;
+            case 'due-today':
+                return task.dueDate === today;
+            case 'overdue':
+                return task.dueDate && task.dueDate < today && !task.completed;
+            case 'no-due-date':
+                return !task.dueDate;
+            default:
+                return true;
+        }
+    }
+
     getFilteredTasks() {
-        return this.tasks.filter(task => this.matchesCategoryFilter(task));
+        // Both filters apply at the same time
+        return this.tasks.filter(task =>
+            this.matchesCategoryFilter(task) && this.matchesDueDateFilter(task)
+        );
     }
 
     getCategoryIcon(category) {
@@ -166,6 +219,45 @@ class TaskFlow {
         return colors[category] || '#38a169';
     }
 
+    isOverdue(task) {
+        if (!task.dueDate || task.completed) return false;
+        const today = this.getLocalDateString();
+        return task.dueDate < today;
+    }
+
+    isDueToday(task) {
+        if (!task.dueDate) return false;
+        const today = this.getLocalDateString();
+        return task.dueDate === today;
+    }
+
+    formatDueDate(dateString) {
+        if (!dateString) return '';
+
+        // Parse YYYY-MM-DD as a local date (new Date('YYYY-MM-DD') is UTC midnight)
+        const [year, month, day] = dateString.split('-').map(Number);
+        const date = new Date(year, month - 1, day);
+        const today = new Date();
+        const tomorrow = new Date(today);
+        tomorrow.setDate(tomorrow.getDate() + 1);
+
+        const taskDate = date.toDateString();
+        const todayString = today.toDateString();
+        const tomorrowString = tomorrow.toDateString();
+
+        if (taskDate === todayString) {
+            return 'Today';
+        } else if (taskDate === tomorrowString) {
+            return 'Tomorrow';
+        } else {
+            return date.toLocaleDateString('en-US', {
+                month: 'short',
+                day: 'numeric',
+                year: date.getFullYear() !== today.getFullYear() ? 'numeric' : undefined
+            });
+        }
+    }
+
     getPriorityValue(priority) {
         const priorities = { high: 3, medium: 2, low: 1 };
         return priorities[priority] || 2;
@@ -182,12 +274,12 @@ class TaskFlow {
         const filteredTasks = this.getFilteredTasks();
 
         if (filteredTasks.length === 0) {
-            const hasCategoryFilter = this.currentCategoryFilter !== 'all';
-            emptyState.querySelector('h3').textContent = hasCategoryFilter
-                ? 'No tasks in this category'
+            const hasFilter = this.currentCategoryFilter !== 'all' || this.currentDueDateFilter !== 'all';
+            emptyState.querySelector('h3').textContent = hasFilter
+                ? 'No tasks match these filters'
                 : 'No tasks yet';
-            emptyState.querySelector('p').textContent = hasCategoryFilter
-                ? 'Choose another category or add a task above.'
+            emptyState.querySelector('p').textContent = hasFilter
+                ? 'Choose another filter or add a task above.'
                 : 'Add your first task above to get started!';
             tasksList.style.display = 'none';
             emptyState.style.display = 'block';
@@ -197,16 +289,26 @@ class TaskFlow {
         tasksList.style.display = 'flex';
         emptyState.style.display = 'none';
 
-        // Sort pending tasks first, then by priority, category and creation date.
+        // Sort tasks: incomplete first, then by priority (high to low), then by due date, then by category, then by creation date
         const sortedTasks = [...filteredTasks].sort((a, b) => {
-            // First sort by completion status
+            // First sort by completion status (incomplete first)
             if (a.completed !== b.completed) {
                 return a.completed - b.completed;
             }
 
+            // Then sort by priority (high to low)
             const priorityDiff = this.getPriorityValue(b.priority) - this.getPriorityValue(a.priority);
             if (priorityDiff !== 0) {
                 return priorityDiff;
+            }
+
+            // Then sort by due date (overdue first, then by date)
+            if (a.dueDate && b.dueDate) {
+                return new Date(a.dueDate) - new Date(b.dueDate);
+            } else if (a.dueDate) {
+                return -1;
+            } else if (b.dueDate) {
+                return 1;
             }
 
             // Then sort by category
@@ -218,30 +320,41 @@ class TaskFlow {
             return new Date(b.createdAt) - new Date(a.createdAt);
         });
 
-        tasksList.innerHTML = sortedTasks.map(task => `
-            <div class="task-item ${task.completed ? 'completed' : ''} category-${task.category} priority-${task.priority}" data-task-id="${task.id}">
-                <div class="task-content">
-                    <div class="task-checkbox ${task.completed ? 'checked' : ''}"
-                         onclick="taskFlow.toggleTask(${task.id})">
+        tasksList.innerHTML = sortedTasks.map(task => {
+            const isOverdue = this.isOverdue(task);
+            const isDueToday = this.isDueToday(task);
+            const dueDateText = this.formatDueDate(task.dueDate);
+
+            return `
+                <div class="task-item ${task.completed ? 'completed' : ''} category-${task.category} priority-${task.priority} ${isOverdue ? 'overdue' : ''} ${isDueToday ? 'due-today' : ''}" data-task-id="${task.id}">
+                    <div class="task-content">
+                        <div class="task-checkbox ${task.completed ? 'checked' : ''}"
+                             onclick="taskFlow.toggleTask(${task.id})">
+                        </div>
+                        <span class="task-text">${this.escapeHtml(task.text)}</span>
+                        <span class="category-badge category-${task.category}" style="background-color: ${this.getCategoryColor(task.category)}">
+                            ${this.getCategoryIcon(task.category)} ${task.category.charAt(0).toUpperCase() + task.category.slice(1)}
+                        </span>
+                        <span class="priority-badge priority-${task.priority}">
+                            ${this.getPriorityIcon(task.priority)} ${task.priority.charAt(0).toUpperCase() + task.priority.slice(1)}
+                        </span>
+                        ${task.dueDate ? `
+                            <span class="due-date-badge ${isOverdue ? 'overdue' : ''} ${isDueToday ? 'due-today' : ''}">
+                                📅 ${dueDateText}
+                            </span>
+                        ` : ''}
                     </div>
-                    <span class="task-text">${this.escapeHtml(task.text)}</span>
-                    <span class="category-badge category-${task.category}" style="background-color: ${this.getCategoryColor(task.category)}">
-                        ${this.getCategoryIcon(task.category)} ${task.category.charAt(0).toUpperCase() + task.category.slice(1)}
-                    </span>
-                    <span class="priority-badge priority-${task.priority}">
-                        ${this.getPriorityIcon(task.priority)} ${task.priority.charAt(0).toUpperCase() + task.priority.slice(1)}
-                    </span>
+                    <div class="task-actions">
+                        <button class="task-btn edit-btn" onclick="taskFlow.editTask(${task.id})" title="Edit task">
+                            ✏️
+                        </button>
+                        <button class="task-btn delete-btn" onclick="taskFlow.deleteTask(${task.id})" title="Delete task">
+                            🗑️
+                        </button>
+                    </div>
                 </div>
-                <div class="task-actions">
-                    <button class="task-btn edit-btn" onclick="taskFlow.editTask(${task.id})" title="Edit task">
-                        ✏️
-                    </button>
-                    <button class="task-btn delete-btn" onclick="taskFlow.deleteTask(${task.id})" title="Delete task">
-                        🗑️
-                    </button>
-                </div>
-            </div>
-        `).join('');
+            `;
+        }).join('');
     }
 
     updateStats() {
@@ -249,20 +362,23 @@ class TaskFlow {
         const completedTasks = this.tasks.filter(task => task.completed).length;
         const pendingTasks = totalTasks - completedTasks;
         const categoriesUsed = new Set(this.tasks.map(task => task.category)).size;
+        const overdueTasks = this.tasks.filter(task => this.isOverdue(task)).length;
         const highPriorityTasks = this.tasks.filter(task => task.priority === 'high' && !task.completed).length;
 
         document.getElementById('totalTasks').textContent = totalTasks;
         document.getElementById('completedTasks').textContent = completedTasks;
         document.getElementById('pendingTasks').textContent = pendingTasks;
         document.getElementById('categoriesUsed').textContent = categoriesUsed;
+        document.getElementById('overdueTasks').textContent = overdueTasks;
         document.getElementById('highPriorityTasks').textContent = highPriorityTasks;
 
         // Update task count in header
         const taskCount = document.getElementById('taskCount');
         taskCount.textContent = `${totalTasks} ${totalTasks === 1 ? 'task' : 'tasks'}`;
 
-        // Update category statistics
+        // Update category and due date statistics
         this.updateCategoryStats();
+        this.updateDueDateStats();
     }
 
     updateCategoryStats() {
@@ -305,6 +421,37 @@ class TaskFlow {
         }
     }
 
+    updateDueDateStats() {
+        const dueDateStats = document.getElementById('dueDateStats');
+        const today = this.getLocalDateString();
+
+        const stats = {
+            dueToday: this.tasks.filter(task => task.dueDate === today && !task.completed).length,
+            overdue: this.tasks.filter(task => this.isOverdue(task)).length,
+            upcoming: this.tasks.filter(task => task.dueDate && task.dueDate > today && !task.completed).length,
+            noDueDate: this.tasks.filter(task => !task.dueDate && !task.completed).length
+        };
+
+        dueDateStats.innerHTML = `
+            <div class="stat-item">
+                <span class="stat-icon">📅</span>
+                <span class="stat-text">Due Today: ${stats.dueToday}</span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-icon">⚠️</span>
+                <span class="stat-text">Overdue: ${stats.overdue}</span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-icon">📋</span>
+                <span class="stat-text">Upcoming: ${stats.upcoming}</span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-icon">📝</span>
+                <span class="stat-text">No Due Date: ${stats.noDueDate}</span>
+            </div>
+        `;
+    }
+
     saveTasks() {
         try {
             localStorage.setItem('taskflow_tasks', JSON.stringify(this.tasks));
@@ -319,14 +466,18 @@ class TaskFlow {
         try {
             const saved = localStorage.getItem('taskflow_tasks');
             const tasks = saved ? JSON.parse(saved) : [];
+
+            // localStorage can be edited by the user, so treat stored values as untrusted:
+            // only keep known priorities and well-formed YYYY-MM-DD due dates.
             const validCategories = ['work', 'personal', 'shopping', 'health', 'study'];
             const validPriorities = ['high', 'medium', 'low'];
+            const datePattern = /^\d{4}-\d{2}-\d{2}$/;
 
-            // Migrate missing or invalid values from saved tasks to safe defaults.
             return tasks.map(task => ({
                 ...task,
                 category: validCategories.includes(task.category) ? task.category : 'personal',
-                priority: validPriorities.includes(task.priority) ? task.priority : 'medium'
+                priority: validPriorities.includes(task.priority) ? task.priority : 'medium',
+                dueDate: typeof task.dueDate === 'string' && datePattern.test(task.dueDate) ? task.dueDate : null
             }));
         } catch (error) {
             console.error('Failed to load tasks:', error);
@@ -431,6 +582,7 @@ class TaskFlow {
 
     getTaskStats() {
         const now = new Date();
+        const today = this.getLocalDateString(now);
         const categoryBreakdown = {};
 
         ['work', 'personal', 'shopping', 'health', 'study'].forEach(category => {
@@ -447,6 +599,9 @@ class TaskFlow {
             pending: this.tasks.filter(t => !t.completed).length,
             categoriesUsed: new Set(this.tasks.map(t => t.category)).size,
             categoryBreakdown,
+            dueToday: this.tasks.filter(t => t.dueDate === today && !t.completed).length,
+            overdue: this.tasks.filter(t => this.isOverdue(t)).length,
+            upcoming: this.tasks.filter(t => t.dueDate && t.dueDate > today && !t.completed).length,
             highPriority: this.tasks.filter(t => t.priority === 'high' && !t.completed).length,
             mediumPriority: this.tasks.filter(t => t.priority === 'medium' && !t.completed).length,
             lowPriority: this.tasks.filter(t => t.priority === 'low' && !t.completed).length,

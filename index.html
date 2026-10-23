@@ -36,6 +36,10 @@
                             <option value="high">High Priority</option>
                             <option value="low">Low Priority</option>
                         </select>
+                        <div class="date-input-container">
+                            <label for="dueDateInput" class="date-label">Due:</label>
+                            <input type="date" id="dueDateInput" class="date-input">
+                        </div>
                     </div>
                     <button id="addTaskBtn" class="add-btn">
                         <span class="add-icon">+</span>
@@ -71,6 +75,29 @@
                     <button class="category-filter-btn" data-category="study">
                         <span class="filter-icon">📚</span>
                         Study
+                    </button>
+                </div>
+            </div>
+
+            <!-- Due Date Filter Section -->
+            <div class="due-date-filters">
+                <h3>Filter by Due Date:</h3>
+                <div class="due-date-filter-buttons">
+                    <button class="due-date-filter-btn active" data-filter="all">
+                        <span class="filter-icon">📋</span>
+                        All Tasks
+                    </button>
+                    <button class="due-date-filter-btn" data-filter="due-today">
+                        <span class="filter-icon">📅</span>
+                        Due Today
+                    </button>
+                    <button class="due-date-filter-btn" data-filter="overdue">
+                        <span class="filter-icon">⚠️</span>
+                        Overdue
+                    </button>
+                    <button class="due-date-filter-btn" data-filter="no-due-date">
+                        <span class="filter-icon">📝</span>
+                        No Due Date
                     </button>
                 </div>
             </div>
@@ -111,6 +138,19 @@
                     <div class="stat-card priority-stats">
                         <span class="stat-number" id="highPriorityTasks">0</span>
                         <span class="stat-label">High Priority</span>
+                    </div>
+                    <div class="stat-card overdue-stats">
+                        <span class="stat-number" id="overdueTasks">0</span>
+                        <span class="stat-label">Overdue</span>
+                    </div>
+                </div>
+
+                <div class="detailed-analytics">
+                    <div class="analytics-section">
+                        <h3>Due Date Overview</h3>
+                        <div id="dueDateStats" class="due-date-stats-list">
+                            <!-- Due date statistics will be populated here -->
+                        </div>
                     </div>
                 </div>
 
