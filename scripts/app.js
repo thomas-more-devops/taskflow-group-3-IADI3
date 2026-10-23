@@ -1,4 +1,19 @@
+/**
+ * TaskFlow - task manager built with plain HTML, CSS and JavaScript.
+ *
+ * All the logic lives in the TaskFlow class:
+ * - state: the list of tasks and the next free id
+ * - persistence: tasks are stored in the browser localStorage
+ * - features: priorities, categories, due dates, search, filters and sorting
+ * - rendering: the task list and the statistics are rebuilt after every change
+ *
+ * One instance is created when the page loads and exposed as `window.taskFlow`,
+ * because the buttons rendered in the list call it from inline onclick handlers.
+ */
 class TaskFlow {
+    /**
+     * Loads saved tasks, connects the UI and draws the first render.
+     */
     constructor() {
         this.tasks = this.loadTasks();
         this.taskIdCounter = this.getNextTaskId();
@@ -13,11 +28,17 @@ class TaskFlow {
         this.updateStats();
     }
 
+    /**
+     * Logs that the app started and shows the welcome message.
+     */
     initializeApp() {
         console.log('TaskFlow initialized successfully!');
         this.showWelcomeMessage();
     }
 
+    /**
+     * Logs a welcome message when there are no saved tasks yet.
+     */
     showWelcomeMessage() {
         if (this.tasks.length === 0) {
             console.log('Welcome to TaskFlow! Add your first task to get started.');
@@ -26,6 +47,11 @@ class TaskFlow {
 
     // Returns a date as YYYY-MM-DD in the user's local time zone.
     // toISOString() uses UTC, which can be one day off around midnight.
+    /**
+     * Returns a date as YYYY-MM-DD in the local time zone (not UTC), so "today" is correct for the user.
+     * @param {Date} [date] - The date to format, today by default.
+     * @returns {string}
+     */
     getLocalDateString(date = new Date()) {
         const year = date.getFullYear();
         const month = String(date.getMonth() + 1).padStart(2, '0');
@@ -33,6 +59,9 @@ class TaskFlow {
         return `${year}-${month}-${day}`;
     }
 
+    /**
+     * Connects the buttons, inputs, filters and sort controls to their handlers.
+     */
     bindEvents() {
         const addTaskBtn = document.getElementById('addTaskBtn');
         const taskInput = document.getElementById('taskInput');
@@ -109,6 +138,9 @@ class TaskFlow {
         taskInput.focus();
     }
 
+    /**
+     * Reads the form, creates a new task with its priority, category and due date, saves it and re-renders.
+     */
     addTask() {
         const taskInput = document.getElementById('taskInput');
         const categorySelect = document.getElementById('categorySelect');
@@ -154,6 +186,10 @@ class TaskFlow {
         this.showNotification('Task added successfully!', 'success');
     }
 
+    /**
+     * Deletes a task after the user confirms.
+     * @param {number} taskId - Id of the task to delete.
+     */
     deleteTask(taskId) {
         if (confirm('Are you sure you want to delete this task?')) {
             this.tasks = this.tasks.filter(task => task.id !== taskId);
@@ -164,6 +200,10 @@ class TaskFlow {
         }
     }
 
+    /**
+     * Marks a task as completed or pending and stores the completion time.
+     * @param {number} taskId - Id of the task to toggle.
+     */
     toggleTask(taskId) {
         const task = this.tasks.find(task => task.id === taskId);
         if (task) {
@@ -178,6 +218,10 @@ class TaskFlow {
         }
     }
 
+    /**
+     * Asks for a new description and updates the task text.
+     * @param {number} taskId - Id of the task to edit.
+     */
     editTask(taskId) {
         const task = this.tasks.find(task => task.id === taskId);
         if (task) {
@@ -191,6 +235,10 @@ class TaskFlow {
         }
     }
 
+    /**
+     * Selects a due date filter (all, due today, overdue, no due date) and re-renders.
+     * @param {string} filter - The filter name from data-filter.
+     */
     setDueDateFilter(filter) {
         this.currentDueDateFilter = filter;
 
@@ -204,6 +252,10 @@ class TaskFlow {
         this.updateStats();
     }
 
+    /**
+     * Selects a category filter and re-renders.
+     * @param {string} category - A category name or "all".
+     */
     setCategoryFilter(category) {
         this.currentCategoryFilter = category;
 
@@ -217,6 +269,10 @@ class TaskFlow {
         this.updateStats();
     }
 
+    /**
+     * Selects a status filter (all, completed, pending, recent) and re-renders.
+     * @param {string} filter - The filter name from data-filter.
+     */
     setFilter(filter) {
         this.currentFilter = filter;
 
@@ -231,6 +287,9 @@ class TaskFlow {
         this.updateStats();
     }
 
+    /**
+     * Shows or hides the advanced search options panel.
+     */
     toggleAdvancedPanel() {
         const panel = document.getElementById('advancedPanel');
         const toggleIcon = document.querySelector('.toggle-icon');
@@ -248,6 +307,9 @@ class TaskFlow {
         }
     }
 
+    /**
+     * Resets the search text, every filter and the sort order to their defaults.
+     */
     clearAllFilters() {
         // Reset search
         clearTimeout(this.searchTimeout);
@@ -273,11 +335,21 @@ class TaskFlow {
         this.showNotification('All filters cleared', 'info');
     }
 
+    /**
+     * Checks whether the task text contains the current search text.
+     * @param {Object} task
+     * @returns {boolean}
+     */
     matchesSearch(task) {
         if (!this.searchQuery) return true;
         return task.text.toLowerCase().includes(this.searchQuery);
     }
 
+    /**
+     * Checks the status filter (completed, pending or created in the last 24 hours).
+     * @param {Object} task
+     * @returns {boolean}
+     */
     matchesFilter(task) {
         const now = new Date();
         const taskCreated = new Date(task.createdAt);
@@ -297,6 +369,11 @@ class TaskFlow {
         }
     }
 
+    /**
+     * Checks whether the task belongs to the selected category.
+     * @param {Object} task
+     * @returns {boolean}
+     */
     matchesCategoryFilter(task) {
         if (this.currentCategoryFilter === 'all') {
             return true;
@@ -304,6 +381,11 @@ class TaskFlow {
         return task.category === this.currentCategoryFilter;
     }
 
+    /**
+     * Checks the due date filter against the task.
+     * @param {Object} task
+     * @returns {boolean}
+     */
     matchesDueDateFilter(task) {
         const today = this.getLocalDateString();
 
@@ -321,6 +403,10 @@ class TaskFlow {
         }
     }
 
+    /**
+     * Returns the tasks that pass the search and every active filter.
+     * @returns {Object[]}
+     */
     getFilteredTasks() {
         // Search, status, category and due date filters all apply at the same time
         return this.tasks.filter(task =>
@@ -331,6 +417,10 @@ class TaskFlow {
         );
     }
 
+    /**
+     * Tells whether any search text or filter is currently active.
+     * @returns {boolean}
+     */
     hasActiveFilters() {
         return Boolean(this.searchQuery) ||
             this.currentFilter !== 'all' ||
@@ -338,6 +428,11 @@ class TaskFlow {
             this.currentDueDateFilter !== 'all';
     }
 
+    /**
+     * Returns the emoji used for a category, personal by default.
+     * @param {string} category
+     * @returns {string}
+     */
     getCategoryIcon(category) {
         const icons = {
             work: '💼',
@@ -349,6 +444,11 @@ class TaskFlow {
         return icons[category] || '📝';
     }
 
+    /**
+     * Returns the badge color of a category, personal by default.
+     * @param {string} category
+     * @returns {string}
+     */
     getCategoryColor(category) {
         const colors = {
             work: '#3182ce',
@@ -360,18 +460,33 @@ class TaskFlow {
         return colors[category] || '#38a169';
     }
 
+    /**
+     * A task is overdue when it has a due date in the past and is not completed.
+     * @param {Object} task
+     * @returns {boolean}
+     */
     isOverdue(task) {
         if (!task.dueDate || task.completed) return false;
         const today = this.getLocalDateString();
         return task.dueDate < today;
     }
 
+    /**
+     * Checks whether the task is due today.
+     * @param {Object} task
+     * @returns {boolean}
+     */
     isDueToday(task) {
         if (!task.dueDate) return false;
         const today = this.getLocalDateString();
         return task.dueDate === today;
     }
 
+    /**
+     * Formats a due date as "Today", "Tomorrow" or a short date.
+     * @param {string} dateString - Date as YYYY-MM-DD.
+     * @returns {string}
+     */
     formatDueDate(dateString) {
         if (!dateString) return '';
 
@@ -399,11 +514,21 @@ class TaskFlow {
         }
     }
 
+    /**
+     * Converts a priority name to a number so tasks can be sorted (high 3, medium 2, low 1).
+     * @param {string} priority
+     * @returns {number}
+     */
     getPriorityValue(priority) {
         const priorities = { high: 3, medium: 2, low: 1 };
         return priorities[priority] || 2;
     }
 
+    /**
+     * Returns the emoji used for a priority level.
+     * @param {string} priority
+     * @returns {string}
+     */
     getPriorityIcon(priority) {
         const icons = { high: '🔥', medium: '⚡', low: '📌' };
         return icons[priority] || '⚡';
@@ -411,6 +536,9 @@ class TaskFlow {
 
     // Default sort shared by the priority system, due dates and categories:
     // pending first, then priority (high to low), due date, category and newest first
+    /**
+     * Sort comparator: pending tasks first, then high to low priority, then by due date, category and creation date.
+     */
     compareByPriority(a, b) {
         if (a.completed !== b.completed) {
             return a.completed - b.completed;
@@ -438,6 +566,11 @@ class TaskFlow {
         return new Date(b.createdAt) - new Date(a.createdAt);
     }
 
+    /**
+     * Returns a sorted copy of the tasks according to the selected sort option.
+     * @param {Object[]} tasks
+     * @returns {Object[]}
+     */
     getSortedTasks(tasks) {
         const sortedTasks = [...tasks];
 
@@ -463,6 +596,11 @@ class TaskFlow {
         }
     }
 
+    /**
+     * Escapes the text and wraps the matches of the search text in <mark>. The text is split first, so an HTML entity is never cut in half.
+     * @param {string} text
+     * @returns {string} HTML safe to insert in the page.
+     */
     highlightSearchTerm(text) {
         if (!this.searchQuery) return this.escapeHtml(text);
 
@@ -477,10 +615,19 @@ class TaskFlow {
             .join('');
     }
 
+    /**
+     * Escapes the special characters of a string so it can be used inside a RegExp.
+     * @param {string} string
+     * @returns {string}
+     */
     escapeRegex(string) {
         return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     }
 
+    /**
+     * Updates the "Showing X of Y" text next to the search box.
+     * @param {Object[]} [filteredTasks] - Tasks already filtered, computed if not given.
+     */
     updateSearchResults(filteredTasks = this.getFilteredTasks()) {
         const searchResults = document.getElementById('searchResults');
         const totalTasks = this.tasks.length;
@@ -493,6 +640,9 @@ class TaskFlow {
         }
     }
 
+    /**
+     * Rebuilds the task list from the current tasks, filters and sort order, or shows the empty / no results message.
+     */
     renderTasks() {
         const tasksList = document.getElementById('tasksList');
         const emptyState = document.getElementById('emptyState');
@@ -563,6 +713,9 @@ class TaskFlow {
         }).join('');
     }
 
+    /**
+     * Recalculates the statistic cards and the header counter, and refreshes the category and due date summaries.
+     */
     updateStats() {
         const totalTasks = this.tasks.length;
         const completedTasks = this.tasks.filter(task => task.completed).length;
@@ -589,6 +742,9 @@ class TaskFlow {
         this.updateDueDateStats();
     }
 
+    /**
+     * Draws the progress bar of every category that has tasks.
+     */
     updateCategoryStats() {
         const categoryStats = document.getElementById('categoryStats');
         const categories = ['work', 'personal', 'shopping', 'health', 'study'];
@@ -629,6 +785,9 @@ class TaskFlow {
         }
     }
 
+    /**
+     * Draws the due today, overdue, upcoming and no due date counters.
+     */
     updateDueDateStats() {
         const dueDateStats = document.getElementById('dueDateStats');
         const today = this.getLocalDateString();
@@ -660,6 +819,9 @@ class TaskFlow {
         `;
     }
 
+    /**
+     * Saves the tasks and the id counter in localStorage and shows an error notification if it fails.
+     */
     saveTasks() {
         try {
             localStorage.setItem('taskflow_tasks', JSON.stringify(this.tasks));
@@ -670,6 +832,9 @@ class TaskFlow {
         }
     }
 
+    /**
+     * Loads the saved tasks and fills missing or invalid category, priority and due date values with safe defaults.
+     */
     loadTasks() {
         try {
             const saved = localStorage.getItem('taskflow_tasks');
@@ -693,6 +858,10 @@ class TaskFlow {
         }
     }
 
+    /**
+     * Reads the next free task id from localStorage, 1 if there is none.
+     * @returns {number}
+     */
     getNextTaskId() {
         try {
             const saved = localStorage.getItem('taskflow_counter');
@@ -703,6 +872,11 @@ class TaskFlow {
         }
     }
 
+    /**
+     * Escapes the characters that have a meaning in HTML so user text cannot inject markup.
+     * @param {string} unsafe
+     * @returns {string}
+     */
     escapeHtml(unsafe) {
         return unsafe
             .replace(/&/g, "&amp;")
@@ -712,6 +886,11 @@ class TaskFlow {
             .replace(/'/g, "&#039;");
     }
 
+    /**
+     * Shows a toast message in the top-right corner for 3 seconds.
+     * @param {string} message
+     * @param {string} [type] - success, error, warning or info.
+     */
     showNotification(message, type = 'info') {
         // Simple notification system
         console.log(`[${type.toUpperCase()}] ${message}`);
@@ -764,6 +943,9 @@ class TaskFlow {
     }
 
     // Utility methods for potential future features
+    /**
+     * Downloads all tasks as taskflow_backup.json. Not connected to a button yet, call it from the console.
+     */
     exportTasks() {
         const dataStr = JSON.stringify(this.tasks, null, 2);
         const dataBlob = new Blob([dataStr], {type: 'application/json'});
@@ -778,6 +960,9 @@ class TaskFlow {
         this.showNotification('Tasks exported successfully!', 'success');
     }
 
+    /**
+     * Deletes every task after the user confirms.
+     */
     clearAllTasks() {
         if (confirm('Are you sure you want to delete ALL tasks? This cannot be undone.')) {
             this.tasks = [];
@@ -788,6 +973,10 @@ class TaskFlow {
         }
     }
 
+    /**
+     * Returns counters for the tasks (total, completed, priorities, due dates, categories...) for developers.
+     * @returns {Object}
+     */
     getTaskStats() {
         const now = new Date();
         const today = this.getLocalDateString(now);
@@ -835,6 +1024,10 @@ class TaskFlow {
     }
 
     // Advanced search functionality
+    /**
+     * Sets the search text from code and re-renders.
+     * @param {string} keyword
+     */
     searchByKeyword(keyword) {
         this.searchQuery = keyword.toLowerCase();
         document.getElementById('searchInput').value = keyword;
@@ -843,6 +1036,9 @@ class TaskFlow {
     }
 
     // Bulk operations
+    /**
+     * Marks every pending task that matches the current filters as completed.
+     */
     markAllCompleted() {
         const filteredTasks = this.getFilteredTasks();
         const pendingTasks = filteredTasks.filter(task => !task.completed);
@@ -863,6 +1059,9 @@ class TaskFlow {
         this.showNotification(`Marked ${pendingTasks.length} tasks as completed`, 'success');
     }
 
+    /**
+     * Deletes all completed tasks after the user confirms.
+     */
     deleteCompleted() {
         const completedTasks = this.tasks.filter(task => task.completed);
 

@@ -4,11 +4,13 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>TaskFlow - Complete Task Management App</title>
+    <!-- Main stylesheet: layout, theme and animations live in styles/main.css -->
     <link rel="stylesheet" href="styles/main.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 </head>
 <body>
     <div class="container">
+        <!-- ===== HEADER: app name and tagline ===== -->
         <header class="header">
             <div class="header-content">
                 <h1 class="app-title">
@@ -19,6 +21,7 @@
             </div>
         </header>
 
+        <!-- ===== MAIN: form, filters, task list and statistics ===== -->
         <main class="main">
             <!-- Task Input Section -->
             <div class="task-input-section">
@@ -237,11 +240,13 @@
             </div>
         </main>
 
+        <!-- ===== FOOTER ===== -->
         <footer class="footer">
             <p>&copy; 2024 TaskFlow. Complete task management with priorities, categories, due dates, and search.</p>
         </footer>
     </div>
 
+    <!-- Application logic, loaded last so every element above already exists in the DOM -->
     <script src="scripts/app.js"></script>
 </body>
 </html>
