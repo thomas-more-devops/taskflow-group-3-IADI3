@@ -1,56 +1,114 @@
-# Pull Request
+## 🚀 Pull Request: [Brief Description]
 
-## 📋 Description
+### 📝 Description
+Provide a clear and concise description of what this PR accomplishes.
 
-<!-- What does this pull request change, and why? -->
+### 🎯 Type of Change
+- [ ] 🐛 Bug fix (non-breaking change which fixes an issue)
+- [ ] ✨ New feature (non-breaking change which adds functionality)
+- [ ] 💥 Breaking change (fix or feature that would cause existing functionality to change)
+- [ ] 📚 Documentation update
+- [ ] 🎨 Style/formatting changes
+- [ ] ♻️ Code refactoring (no functional changes)
+- [ ] ⚡ Performance improvement
+- [ ] 🧪 Test updates
 
-**Summary of changes:**
--
--
+### 🔗 Related Issues
+- Closes #[issue-number]
+- Related to #[issue-number]
+- Depends on #[issue-number]
 
-## 🏷️ Type of Change
+### 🧪 Testing Checklist
+- [ ] **Functionality**: All features work as intended
+- [ ] **Browser Testing**: Tested in Chrome, Firefox, Safari
+- [ ] **Mobile Responsive**: Works properly on mobile devices
+- [ ] **No Console Errors**: Browser console is clean
+- [ ] **Data Persistence**: Local storage works correctly
+- [ ] **Cross-feature Integration**: New changes work with existing features
+- [ ] **Performance**: No noticeable performance degradation
 
-<!-- Tick the one that fits best. It should match the prefix of your commit messages. -->
+### 🎨 UI/UX Checklist
+- [ ] **Visual Design**: Follows established design patterns
+- [ ] **Accessibility**: Proper ARIA labels and keyboard navigation
+- [ ] **Responsive Design**: Works on all screen sizes
+- [ ] **User Feedback**: Appropriate notifications and feedback
+- [ ] **Consistent Styling**: Matches existing visual hierarchy
 
-- [ ] `docs` – documentation only
-- [ ] `feat` – new feature
-- [ ] `fix` – bug fix
-- [ ] `style` – formatting or CSS, no logic change
-- [ ] `refactor` – code change that is neither a fix nor a feature
-- [ ] `chore` – repository or tooling
+### 📋 Code Quality Checklist
+- [ ] **Self-review**: I have reviewed my own code
+- [ ] **Comments**: Complex code sections are commented
+- [ ] **Naming**: Variables and functions have descriptive names
+- [ ] **No Dead Code**: Removed unused code and console.logs
+- [ ] **Error Handling**: Appropriate error handling implemented
+- [ ] **Code Style**: Follows established code conventions
 
-## 🎯 Related Issues
+### 📚 Documentation Checklist
+- [ ] **README**: Updated if new features added
+- [ ] **Comments**: Added inline code comments where needed
+- [ ] **API Changes**: Documented any API or interface changes
+- [ ] **User Guide**: Updated user-facing documentation if applicable
 
-<!-- Link issues with a GitHub keyword so they close automatically on merge, e.g. "Closes #3". Write "None" if there is no issue. -->
+### 🔄 Git Workflow Checklist
+- [ ] **Branch Name**: Follows naming convention (feature/fix/docs/etc.)
+- [ ] **Commit Messages**: Follow conventional commit format
+- [ ] **Up to Date**: Branch is up to date with main
+- [ ] **Single Purpose**: PR has a single, clear purpose
+- [ ] **Small Size**: PR is reasonably sized for effective review
 
-Closes #
+### 📸 Screenshots/Demo (if applicable)
+**Before:**
+[Include before screenshots or describe current behavior]
 
-## 🧪 How Was This Tested?
+**After:**
+[Include after screenshots showing the changes]
 
-<!-- Describe what you checked. For TaskFlow this is usually manual testing in the browser. -->
+### ⚡ Performance Impact
+- [ ] No performance impact
+- [ ] Improves performance
+- [ ] Minor performance impact (acceptable)
+- [ ] Major performance impact (requires discussion)
 
-- [ ] Opened `index.html` in the browser and the page loads without errors in the console
-- [ ] Adding, completing, editing and deleting a task still work
-- [ ] Tasks are still there after reloading the page
-- [ ] Checked the layout on a narrow (mobile) window, if the change affects the UI
+**Performance Details (if applicable):**
+- Load time impact:
+- Memory usage impact:
+- Animation smoothness:
 
-## 📸 Screenshots
+### 🚀 Deployment Notes
+**Special deployment considerations:**
+- [ ] No special deployment needed
+- [ ] Requires data migration
+- [ ] Requires configuration changes
+- [ ] Requires dependency updates
 
-<!-- Only for visual changes. Delete this section otherwise. -->
+### 👥 Reviewer Guidelines
+**What to focus on during review:**
+- Functionality and user experience
+- Code quality and maintainability
+- Performance and accessibility
+- Integration with existing features
 
-| Before | After |
-|--------|-------|
-|        |       |
+**Testing Instructions for Reviewers:**
+1. Pull branch: `git checkout [branch-name]`
+2. Open `index.html` in browser
+3. Test specific functionality: [describe what to test]
+4. Verify mobile responsiveness
+5. Check browser console for errors
 
-## ✅ Checklist
+### 📋 Definition of Done
+This PR is ready to merge when:
+- [ ] All checklist items above are completed
+- [ ] At least 1 team member has approved
+- [ ] All GitHub Actions checks pass
+- [ ] No merge conflicts with main branch
+- [ ] Feature is documented and tested
 
-- [ ] My branch is up to date with `main`
-- [ ] I worked on my own branch, not directly on `main`
-- [ ] Commit messages follow the Conventional Commits format (`type: description`)
-- [ ] Code comments added or updated where needed
-- [ ] Documentation updated if needed (`README.md`, `docs/FEATURES.md`, `docs/ARCHITECTURE.md`, `docs/SETUP.md`)
-- [ ] At least one teammate is requested as reviewer
+---
 
-## 💭 Notes for Reviewers
+### 🙏 Thank you for your contribution!
+Your work helps make TaskFlow better for everyone. We appreciate your effort in maintaining code quality and following our contribution guidelines.
 
-<!-- Anything reviewers should look at first, open questions, or follow-up work. -->
+### 📞 Need Help?
+If you need assistance with this PR:
+- Comment in this PR with specific questions
+- Check our [Contributing Guidelines](../docs/CONTRIBUTING.md)
+- Review our [Code of Conduct](../docs/CODE_OF_CONDUCT.md)
