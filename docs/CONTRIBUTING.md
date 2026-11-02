@@ -1,143 +1,372 @@
 # Contributing to TaskFlow
 
-Thanks for helping improve TaskFlow! This guide explains how our team works on the project so that every change is easy to review and merge.
+Thank you for your interest in contributing to TaskFlow! This document provides guidelines and instructions for contributing to our task management application.
 
-## Table of Contents
+## 🚀 Getting Started
 
-- [Code of Conduct](#code-of-conduct)
-- [Getting Started](#getting-started)
-- [Branching Strategy](#branching-strategy)
-- [Making Changes](#making-changes)
-- [Coding Standards](#coding-standards)
-- [Commit Messages](#commit-messages)
-- [Pull Request Process](#pull-request-process)
-- [Reporting Issues](#reporting-issues)
-- [Testing Checklist](#testing-checklist)
-- [Documentation](#documentation)
+### Prerequisites
+- Git installed on your machine
+- Modern web browser (Chrome, Firefox, Safari, Edge)
+- Basic understanding of HTML, CSS, and JavaScript
+- GitHub account for collaboration
 
-## Code of Conduct
+### Setting Up Development Environment
+```bash
+# 1. Fork the repository on GitHub
+# 2. Clone your fork
+git clone https://github.com/YOUR-USERNAME/taskflow.git
+cd taskflow
 
-Be respectful and constructive. Welcome different viewpoints, give feedback kindly, accept feedback gracefully, and keep discussions focused on the project. Harassment, personal attacks and discriminatory language are not tolerated.
+# 3. Add upstream remote
+git remote add upstream https://github.com/ORIGINAL-OWNER/taskflow.git
 
-## Getting Started
+# 4. Create feature branch
+git checkout -b feature/your-feature-name
 
-Prerequisites: Git, a GitHub account, a modern browser and basic knowledge of HTML, CSS and JavaScript.
+# 5. Open index.html in browser to start development
+```
 
-1. Accept the collaborator invitation to the repository.
-2. Clone the repository:
+## 📋 How to Contribute
+
+### 🐛 Reporting Bugs
+1. **Check existing issues** to avoid duplicates
+2. **Use bug report template** when creating new issues
+3. **Provide detailed information**:
+   - Steps to reproduce
+   - Expected vs actual behavior
+   - Browser and device information
+   - Screenshots if applicable
+
+### ✨ Suggesting Features
+1. **Use feature request template** for new ideas
+2. **Describe the problem** the feature would solve
+3. **Explain the proposed solution** in detail
+4. **Consider user impact** and implementation complexity
+
+### 🔧 Contributing Code
+
+#### Branch Naming Convention
+```
+feature/task-priority-system     # New features
+bugfix/search-filter-bug        # Bug fixes
+docs/update-setup-guide         # Documentation
+style/improve-button-styling    # Style improvements
+refactor/organize-css-classes   # Code refactoring
+```
+
+#### Commit Message Format
+Follow the [Conventional Commits](https://www.conventionalcommits.org/) specification:
+
+```
+<type>(<scope>): <description>
+
+[optional body]
+
+[optional footer(s)]
+```
+
+**Types:**
+- `feat`: New feature
+- `fix`: Bug fix
+- `docs`: Documentation changes
+- `style`: Formatting, missing semicolons, etc.
+- `refactor`: Code restructuring without functionality change
+- `test`: Adding tests
+- `chore`: Maintenance tasks
+
+**Examples:**
+```
+feat(ui): add task priority system
+
+- Add priority dropdown to task creation form
+- Implement priority-based sorting and filtering
+- Add priority color coding throughout UI
+- Update statistics to include priority breakdown
+
+Closes #42
+
+fix(mobile): resolve search input alignment on small screens
+
+The search input was extending beyond container bounds on
+screens smaller than 480px. Added proper responsive styling.
+
+Fixes #38
+
+docs(readme): update installation instructions
+
+- Add prerequisites section
+- Include troubleshooting guide
+- Update feature list with v2.0 enhancements
+```
+
+#### Code Style Guidelines
+
+**HTML:**
+- Use semantic HTML5 elements
+- Include proper `alt` attributes for images
+- Use meaningful `id` and `class` names
+- Maintain proper indentation (2 spaces)
+
+**CSS:**
+- Follow BEM methodology for class naming
+- Use CSS custom properties for theming
+- Group related styles together
+- Include comments for complex styles
+- Mobile-first responsive design
+
+**JavaScript:**
+- Use ES6+ features (classes, arrow functions, const/let)
+- Follow camelCase naming convention
+- Add JSDoc comments for complex functions
+- Handle errors appropriately
+- Avoid global variables
+
+#### Pull Request Process
+
+1. **Create Feature Branch**
    ```bash
-   git clone https://github.com/thomas-more-devops/taskflow-group-3-IADI3.git
-   cd taskflow-group-3-IADI3
+   git checkout main
+   git pull upstream main
+   git checkout -b feature/your-feature
    ```
-3. Open `index.html` in your browser, or serve the folder locally:
-   ```bash
-   python -m http.server 8000
-   ```
-   Then visit `http://localhost:8000`.
 
-## Branching Strategy
+2. **Make Changes**
+   - Follow code style guidelines
+   - Test your changes thoroughly
+   - Update documentation if needed
 
-- **Never commit directly to `main`.** It always holds the stable, reviewed version.
-- Create one branch per task, starting from an up-to-date `main`:
-  ```bash
-  git checkout main
-  git pull origin main
-  git checkout -b <type>/<short-description>
-  ```
-- Branch names use a type prefix and kebab-case, for example `docs/setup-guide`, `feature/task-priority`, `fix/storage-error`.
-
-| Prefix | Use for |
-| --- | --- |
-| `feature/` | New functionality |
-| `fix/` | Bug fixes |
-| `docs/` | Documentation only |
-| `refactor/` | Code restructuring without behaviour change |
-| `chore/` | Tooling and maintenance |
-
-## Making Changes
-
-1. Check the open issues so you do not duplicate work, and open an issue first for larger changes.
-2. Make small, focused changes on your own branch.
-3. Test your changes (see the [checklist](#testing-checklist)).
-4. Commit, push your branch and open a pull request:
+3. **Commit Changes**
    ```bash
    git add .
-   git commit -m "docs: add architecture guide"
-   git push -u origin <your-branch>
+   git commit -m "feat: add awesome new feature"
    ```
 
-## Coding Standards
-
-**HTML**
-- Use semantic elements (`header`, `main`, `section`, `button`, ...).
-- Add ARIA labels and alt text where needed and keep a logical heading order.
-
-**CSS**
-- Keep new rules in `styles/main.css`, in the section that matches their purpose (layout, components, states, responsive).
-- Name classes in kebab-case (for example `task-item`, `add-btn`) and describe purpose rather than appearance.
-- Check your changes at the existing breakpoints (768px and 480px) and add rules to the `max-width` media queries when needed.
-
-**JavaScript**
-- Use modern ES6+ syntax (`const`/`let`, arrow functions, template literals).
-- Validate input and handle errors with `try/catch` where something can fail.
-- Never insert user text with `innerHTML` unescaped; use `textContent` or the existing `escapeHtml()` helper to prevent XSS.
-- Keep functions short and give them clear names.
-
-## Commit Messages
-
-We follow [Conventional Commits](https://www.conventionalcommits.org/):
-
-```
-<type>[optional scope]: <short description>
-```
-
-Common types: `feat`, `fix`, `docs`, `style`, `refactor`, `perf`, `test`, `chore`.
-
-Good examples:
-
-```
-feat: add task priority levels
-fix: handle corrupted localStorage data
-docs: add contributing guidelines
-```
-
-Avoid vague messages such as `update`, `changes` or `fixed stuff`.
-
-## Pull Request Process
-
-1. Make sure your branch is up to date with `main`:
+4. **Push and Create PR**
    ```bash
-   git fetch origin
-   git merge origin/main
+   git push origin feature/your-feature
+   # Create pull request on GitHub using the PR template
    ```
-2. Open a pull request from your branch into `main`.
-3. Write a clear title and description: what changed, why, and how you tested it. Add screenshots for visual changes.
-4. Link related issues with keywords such as `Closes #3`.
-5. Ask at least one teammate to review. Answer comments politely and push fixes to the same branch.
-6. Once approved and all checks pass, merge the pull request (squash if the history is noisy) and delete the branch.
 
-## Reporting Issues
+5. **Address Review Feedback**
+   - Make requested changes
+   - Respond to comments constructively
+   - Update PR when ready for re-review
 
-Search existing issues first. A good bug report includes a description, steps to reproduce, expected versus actual behaviour, screenshots if useful, and your browser and operating system. A good feature request explains the problem, the proposed solution and any alternatives you considered.
+6. **Merge Requirements**
+   - ✅ All CI checks must pass
+   - ✅ At least 1 approved review
+   - ✅ No merge conflicts
+   - ✅ Branch is up to date with main
 
-## Testing Checklist
+## 🧪 Testing Guidelines
 
-Before opening a pull request, verify what applies to your change:
+### Manual Testing Checklist
+Before submitting a PR, ensure:
+- [ ] **Functionality**: Feature works as intended
+- [ ] **Cross-browser**: Tested in multiple browsers
+- [ ] **Responsive**: Works on mobile, tablet, desktop
+- [ ] **Performance**: No significant slowdowns
+- [ ] **Accessibility**: Keyboard navigation works
+- [ ] **Data Persistence**: Local storage functions correctly
+- [ ] **Error Handling**: Graceful error handling
 
-- [ ] Tasks can be added, completed, edited and deleted
-- [ ] Statistics update correctly
-- [ ] Data survives a page refresh
-- [ ] No errors appear in the browser console
-- [ ] Layout works on mobile, tablet and desktop widths
-- [ ] Keyboard navigation and focus states still work
-- [ ] Works in the latest Chrome, Firefox and Edge (and Safari if available)
+### Testing Your Changes
+```bash
+# 1. Open TaskFlow in browser
+open index.html
 
-## Documentation
+# 2. Test core functionality
+# - Add tasks with different priorities/categories
+# - Test search and filtering
+# - Verify mobile responsiveness
+# - Check browser console for errors
 
-Update the docs whenever behaviour or structure changes:
+# 3. Test edge cases
+# - Empty inputs
+# - Very long task names
+# - Many tasks (100+)
+# - Special characters in task text
+```
 
-- `README.md` for user-facing features and setup
-- `docs/ARCHITECTURE.md` for structural or code-organisation changes
-- Code comments for non-obvious logic
+## 📚 Documentation Standards
 
-Questions? Open an issue with the `question` label or ask in the team chat.
+### Code Comments
+```javascript
+/**
+ * Filters tasks based on current filter criteria
+ * @param {Array} tasks - Array of task objects
+ * @returns {Array} Filtered array of tasks
+ */
+function getFilteredTasks(tasks) {
+    // Implementation details...
+}
+```
+
+### README Updates
+When adding features, update:
+- Features list
+- Screenshots (if UI changes)
+- Usage instructions
+- Any new dependencies
+
+## 🎨 Design Guidelines
+
+### Visual Design Principles
+- **Consistency**: Follow established color palette and typography
+- **Accessibility**: Maintain proper contrast ratios (4.5:1 minimum)
+- **Simplicity**: Clean, uncluttered interface
+- **Feedback**: Provide clear visual feedback for user actions
+
+### Color Palette
+```css
+/* Primary Colors */
+--primary-blue: #667eea;
+--primary-purple: #764ba2;
+
+/* Priority Colors */
+--priority-high: #e53e3e;    /* Red */
+--priority-medium: #ed8936;  /* Orange */
+--priority-low: #48bb78;     /* Green */
+
+/* Category Colors */
+--category-work: #3182ce;     /* Blue */
+--category-personal: #805ad5; /* Purple */
+--category-shopping: #38a169; /* Green */
+--category-health: #e53e3e;   /* Red */
+```
+
+### Typography Scale
+- **Titles**: 2.5rem (Inter 700)
+- **Headings**: 1.5rem (Inter 600)
+- **Body**: 1rem (Inter 400)
+- **Small**: 0.875rem (Inter 500)
+- **Labels**: 0.75rem (Inter 600)
+
+## 🚀 Release Process
+
+### Version Numbering
+We follow [Semantic Versioning](https://semver.org/):
+- **MAJOR.MINOR.PATCH** (e.g., 2.1.0)
+- **MAJOR**: Breaking changes
+- **MINOR**: New features (backward compatible)
+- **PATCH**: Bug fixes (backward compatible)
+
+### Release Workflow
+1. **Create release branch**: `release/v2.1.0`
+2. **Update version numbers** in relevant files
+3. **Update CHANGELOG.md** with release notes
+4. **Test thoroughly** in clean environment
+5. **Create GitHub release** with proper tags
+6. **Merge to main** and deploy
+
+## 👥 Community Guidelines
+
+### Code of Conduct
+Please read and follow our [Code of Conduct](CODE_OF_CONDUCT.md).
+
+### Communication
+- **Be respectful** and constructive in all interactions
+- **Ask questions** if something is unclear
+- **Provide context** when reporting issues or requesting features
+- **Be patient** with review processes
+
+### Getting Help
+- 📖 **Documentation**: Check existing docs first
+- 🐛 **Issues**: Search existing issues before creating new ones
+- 💬 **Discussions**: Use GitHub Discussions for questions
+- 📧 **Direct Contact**: For sensitive issues only
+
+## 🏆 Recognition
+
+### Contributors
+All contributors are recognized in:
+- README.md contributors section
+- GitHub repository insights
+- Release notes for significant contributions
+
+### Contribution Types
+We value all types of contributions:
+- 💻 **Code**: New features, bug fixes, improvements
+- 📚 **Documentation**: README, guides, comments
+- 🎨 **Design**: UI/UX improvements, graphics
+- 🧪 **Testing**: Test cases, bug reports, QA
+- 💡 **Ideas**: Feature suggestions, improvements
+- 🗣️ **Community**: Helping others, discussions
+
+## 📋 Development Checklist
+
+Before submitting any contribution:
+
+### Pre-Development
+- [ ] Issue exists for the work (bug report or feature request)
+- [ ] Issue is approved/triaged by maintainers
+- [ ] Approach discussed in issue comments
+- [ ] Local development environment set up
+
+### During Development
+- [ ] Feature branch created with descriptive name
+- [ ] Regular commits with conventional messages
+- [ ] Code follows established style guidelines
+- [ ] Changes tested manually in multiple browsers
+- [ ] Documentation updated as needed
+
+### Pre-Submission
+- [ ] Self-review of all changes completed
+- [ ] All automated checks passing locally
+- [ ] PR template filled out completely
+- [ ] Screenshots included for UI changes
+- [ ] Breaking changes documented
+
+### Post-Submission
+- [ ] Address review feedback promptly
+- [ ] Update PR based on suggestions
+- [ ] Respond to questions and comments
+- [ ] Ensure CI pipeline passes
+
+## 🛠️ Advanced Contributing
+
+### Working with Forks
+```bash
+# Keep your fork up to date
+git checkout main
+git pull upstream main
+git push origin main
+
+# Rebase feature branch
+git checkout feature/your-feature
+git rebase main
+git push --force-with-lease origin feature/your-feature
+```
+
+### Handling Review Feedback
+```bash
+# Make requested changes
+git add .
+git commit -m "address review feedback: improve error handling"
+
+# Squash commits if requested
+git rebase -i HEAD~3
+# Follow interactive rebase instructions
+```
+
+---
+
+## 📞 Need Help?
+
+If you're new to contributing to open source projects:
+- 📖 [First Contributions Guide](https://github.com/firstcontributions/first-contributions)
+- 📚 [GitHub Docs](https://docs.github.com/en/github/collaborating-with-issues-and-pull-requests)
+- 🎓 [Git Handbook](https://guides.github.com/introduction/git-handbook/)
+
+For TaskFlow-specific questions:
+- 🐛 [Create an issue](../../issues/new)
+- 💬 [Join discussions](../../discussions)
+- 📧 Check repository README for contact information
+
+---
+
+**Thank you for contributing to TaskFlow!** 🙏
+
+Your contributions help make TaskFlow better for everyone. We appreciate your time and effort in maintaining high standards while building an excellent task management application.
+
+*Happy coding!* 🚀
