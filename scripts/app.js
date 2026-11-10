@@ -231,12 +231,15 @@ class TaskFlow {
         const task = this.tasks.find(task => task.id === taskId);
         if (task) {
             const newText = prompt('Edit task:', task.text);
-            if (newText !== null && newText.trim() !== '') {
-                task.text = newText.trim();
-                this.saveTasks();
-                this.renderTasks();
-                this.showNotification('Task updated successfully!', 'success');
+            if (newText === null) return; // user cancelled
+            if (newText.trim() === '') {
+                this.showNotification('Task description cannot be empty', 'warning');
+                return;
             }
+            task.text = newText.trim();
+            this.saveTasks();
+            this.renderTasks();
+            this.showNotification('Task updated successfully!', 'success');
         }
     }
 
