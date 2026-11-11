@@ -3,7 +3,7 @@
  *
  * All the logic lives in the TaskFlow class:
  * - state: the list of tasks and the next free id
- * - persistence: tasks are stored in the browser localStorage
+ * - persistence: tasks are stored on the server through the /api/tasks REST API
  * - features: priorities, categories, due dates, search, filters and sorting
  * - rendering: the task list and the statistics are rebuilt after every change
  *
@@ -12,11 +12,10 @@
  */
 class TaskFlow {
   /**
-   * Loads saved tasks, connects the UI and draws the first render.
+   * Connects the UI and then loads the tasks from the API.
    */
   constructor() {
-    this.tasks = this.loadTasks();
-    this.taskIdCounter = this.getNextTaskId();
+    this.tasks = []; // filled asynchronously by initializeData()
     this.currentFilter = 'all';
     this.currentDueDateFilter = 'all';
     this.currentCategoryFilter = 'all';
@@ -24,8 +23,55 @@ class TaskFlow {
     this.searchQuery = '';
     this.initializeApp();
     this.bindEvents();
+
+    // Load tasks asynchronously after setup
+    this.initializeData();
+  }
+
+  /**
+   * Loads the tasks from the API and draws the first render.
+   */
+  async initializeData() {
+    this.tasks = await this.loadTasks();
     this.renderTasks();
     this.updateStats();
+  }
+
+  /**
+   * Sends a request to the task API and returns the parsed JSON (null for 204 No Content).
+   * Throws when the server answers with an error status, so callers can show a notification.
+   * @param {string} url
+   * @param {Object} [options] - fetch options
+   * @returns {Promise<Object|null>}
+   */
+  async apiRequest(url, options = {}) {
+    const response = await fetch(url, {
+      ...options,
+      headers: { 'Content-Type': 'application/json', ...(options.headers || {}) }
+    });
+    if (!response.ok) {
+      throw new Error(`API ${options.method || 'GET'} ${url} failed with status ${response.status}`);
+    }
+    return response.status === 204 ? null : response.json();
+  }
+
+  /**
+   * Converts a task from the API format (title) to the frontend format (text).
+   * @param {Object} task
+   * @returns {Object}
+   */
+  fromApi(task) {
+    return { ...task, text: task.title };
+  }
+
+  /**
+   * Converts a frontend task (text) to the body the API expects (title).
+   * @param {Object} task
+   * @returns {Object}
+   */
+  toApi(task) {
+    const { text, ...rest } = task;
+    return { ...rest, title: text };
   }
 
   /**
@@ -141,9 +187,9 @@ class TaskFlow {
   }
 
   /**
-   * Reads the form, creates a new task with its priority, category and due date, saves it and re-renders.
+   * Reads the form, creates the task through the API with its priority, category and due date, and re-renders.
    */
-  addTask() {
+  async addTask() {
     const taskInput = document.getElementById('taskInput');
     const categorySelect = document.getElementById('categorySelect');
     const dueDateInput = document.getElementById('dueDateInput');
@@ -159,19 +205,26 @@ class TaskFlow {
       return;
     }
 
-    const newTask = {
-      id: this.taskIdCounter++,
-      text: taskText,
-      category: category,
-      dueDate: dueDate || null,
-      priority: priority,
-      completed: false,
-      createdAt: new Date().toISOString(),
-      completedAt: null
-    };
+    let newTask;
+    try {
+      const savedTask = await this.apiRequest('/api/tasks', {
+        method: 'POST',
+        body: JSON.stringify({
+          title: taskText, // API expects 'title'
+          priority: priority,
+          category: category,
+          dueDate: dueDate || null
+        })
+      });
 
-    this.tasks.push(newTask);
-    this.saveTasks();
+      // Map the saved task to our frontend format
+      newTask = this.fromApi(savedTask);
+      this.tasks.push(newTask);
+    } catch (error) {
+      console.error('Error adding task:', error);
+      this.showNotification('Failed to add task!', 'error');
+      return;
+    }
 
     // If the search or any filter would hide the new task, reset them so it stays visible
     const hiddenByFilters = !this.getFilteredTasks().includes(newTask);
@@ -197,13 +250,19 @@ class TaskFlow {
    * Deletes a task after the user confirms.
    * @param {number} taskId - Id of the task to delete.
    */
-  deleteTask(taskId) {
+  async deleteTask(taskId) {
     if (confirm('Are you sure you want to delete this task?')) {
-      this.tasks = this.tasks.filter(task => task.id !== taskId);
-      this.saveTasks();
-      this.renderTasks();
-      this.updateStats();
-      this.showNotification('Task deleted successfully!', 'success');
+      try {
+        await this.apiRequest(`/api/tasks/${taskId}`, { method: 'DELETE' });
+        this.tasks = this.tasks.filter(task => task.id !== taskId);
+        this.renderTasks();
+        this.updateStats();
+        this.updateSearchResults();
+        this.showNotification('Task deleted successfully!', 'success');
+      } catch (error) {
+        console.error('Error deleting task:', error);
+        this.showNotification('Failed to delete task!', 'error');
+      }
     }
   }
 
@@ -211,17 +270,33 @@ class TaskFlow {
    * Marks a task as completed or pending and stores the completion time.
    * @param {number} taskId - Id of the task to toggle.
    */
-  toggleTask(taskId) {
+  async toggleTask(taskId) {
     const task = this.tasks.find(task => task.id === taskId);
     if (task) {
-      task.completed = !task.completed;
-      task.completedAt = task.completed ? new Date().toISOString() : null;
-      this.saveTasks();
-      this.renderTasks();
-      this.updateStats();
+      const updatedTask = {
+        ...task,
+        completed: !task.completed,
+        completedAt: !task.completed ? new Date().toISOString() : null
+      };
 
-      const message = task.completed ? 'Task completed! 🎉' : 'Task marked as pending';
-      this.showNotification(message, 'success');
+      try {
+        await this.apiRequest(`/api/tasks/${taskId}`, {
+          method: 'PUT',
+          body: JSON.stringify(this.toApi(updatedTask)) // map 'text' to 'title' for the API
+        });
+
+        task.completed = updatedTask.completed;
+        task.completedAt = updatedTask.completedAt;
+        this.renderTasks();
+        this.updateStats();
+        this.updateSearchResults();
+
+        const message = task.completed ? 'Task completed! 🎉' : 'Task marked as pending';
+        this.showNotification(message, 'success');
+      } catch (error) {
+        console.error('Error toggling task:', error);
+        this.showNotification('Failed to update task!', 'error');
+      }
     }
   }
 
@@ -229,7 +304,7 @@ class TaskFlow {
    * Asks for a new description and updates the task text.
    * @param {number} taskId - Id of the task to edit.
    */
-  editTask(taskId) {
+  async editTask(taskId) {
     const task = this.tasks.find(task => task.id === taskId);
     if (task) {
       const newText = prompt('Edit task:', task.text);
@@ -238,10 +313,23 @@ class TaskFlow {
         this.showNotification('Task description cannot be empty', 'warning');
         return;
       }
-      task.text = newText.trim();
-      this.saveTasks();
-      this.renderTasks();
-      this.showNotification('Task updated successfully!', 'success');
+
+      try {
+        await this.apiRequest(`/api/tasks/${taskId}`, {
+          method: 'PUT',
+          body: JSON.stringify(this.toApi({ ...task, text: newText.trim() })) // 'title' for the API
+        });
+
+        task.text = newText.trim();
+        task.title = task.text;
+        this.renderTasks();
+        this.updateStats();
+        this.updateSearchResults();
+        this.showNotification('Task updated successfully!', 'success');
+      } catch (error) {
+        console.error('Error updating task:', error);
+        this.showNotification('Failed to update task!', 'error');
+      }
     }
   }
 
@@ -837,28 +925,24 @@ class TaskFlow {
   }
 
   /**
-   * Saves the tasks and the id counter in localStorage and shows an error notification if it fails.
+   * No longer needed: every change is saved through an API call.
+   * Kept so older code that still calls it does not break.
    */
   saveTasks() {
-    try {
-      localStorage.setItem('taskflow_tasks', JSON.stringify(this.tasks));
-      localStorage.setItem('taskflow_counter', this.taskIdCounter.toString());
-    } catch (error) {
-      console.error('Failed to save tasks:', error);
-      this.showNotification('Failed to save tasks. Please check your browser storage.', 'error');
-    }
+    // Tasks are saved on the server through the API
   }
 
   /**
-   * Loads the saved tasks and fills missing or invalid category, priority and due date values with safe defaults.
+   * Loads the tasks from the API, maps 'title' to 'text' and fills missing or invalid
+   * category, priority and due date values with safe defaults.
+   * @returns {Promise<Object[]>}
    */
-  loadTasks() {
+  async loadTasks() {
     try {
-      const saved = localStorage.getItem('taskflow_tasks');
-      const tasks = saved ? JSON.parse(saved) : [];
+      const tasks = await this.apiRequest('/api/tasks');
 
       /*
-       * localStorage can be edited by the user, so treat stored values as untrusted:
+       * Anyone can send data to the API, so treat stored values as untrusted:
        * only keep known priorities and well-formed YYYY-MM-DD due dates.
        */
       const validCategories = ['work', 'personal', 'shopping', 'health', 'study'];
@@ -866,28 +950,15 @@ class TaskFlow {
       const datePattern = /^\d{4}-\d{2}-\d{2}$/;
 
       return tasks.map(task => ({
-        ...task,
+        ...this.fromApi(task), // Map API's 'title' to frontend's 'text'
         category: validCategories.includes(task.category) ? task.category : 'personal',
         priority: validPriorities.includes(task.priority) ? task.priority : 'medium',
         dueDate: typeof task.dueDate === 'string' && datePattern.test(task.dueDate) ? task.dueDate : null
       }));
     } catch (error) {
       console.error('Failed to load tasks:', error);
+      this.showNotification('Could not load tasks from the server', 'error');
       return [];
-    }
-  }
-
-  /**
-   * Reads the next free task id from localStorage, 1 if there is none.
-   * @returns {number}
-   */
-  getNextTaskId() {
-    try {
-      const saved = localStorage.getItem('taskflow_counter');
-      return saved ? parseInt(saved) : 1;
-    } catch (error) {
-      console.error('Failed to load task counter:', error);
-      return 1;
     }
   }
 
@@ -982,13 +1053,20 @@ class TaskFlow {
   /**
    * Deletes every task after the user confirms.
    */
-  clearAllTasks() {
+  async clearAllTasks() {
     if (confirm('Are you sure you want to delete ALL tasks? This cannot be undone.')) {
-      this.tasks = [];
-      this.saveTasks();
+      try {
+        await Promise.all(this.tasks.map(task =>
+          this.apiRequest(`/api/tasks/${task.id}`, { method: 'DELETE' })));
+        this.tasks = [];
+        this.showNotification('All tasks cleared!', 'success');
+      } catch (error) {
+        console.error('Error clearing tasks:', error);
+        this.tasks = await this.loadTasks();
+        this.showNotification('Failed to clear all tasks!', 'error');
+      }
       this.renderTasks();
       this.updateStats();
-      this.showNotification('All tasks cleared!', 'success');
     }
   }
 
@@ -1058,7 +1136,7 @@ class TaskFlow {
   /**
    * Marks every pending task that matches the current filters as completed.
    */
-  markAllCompleted() {
+  async markAllCompleted() {
     const filteredTasks = this.getFilteredTasks();
     const pendingTasks = filteredTasks.filter(task => !task.completed);
 
@@ -1067,21 +1145,31 @@ class TaskFlow {
       return;
     }
 
-    pendingTasks.forEach(task => {
-      task.completed = true;
-      task.completedAt = new Date().toISOString();
-    });
-
-    this.saveTasks();
+    const completedAt = new Date().toISOString();
+    try {
+      await Promise.all(pendingTasks.map(task =>
+        this.apiRequest(`/api/tasks/${task.id}`, {
+          method: 'PUT',
+          body: JSON.stringify(this.toApi({ ...task, completed: true, completedAt }))
+        })));
+      pendingTasks.forEach(task => {
+        task.completed = true;
+        task.completedAt = completedAt;
+      });
+      this.showNotification(`Marked ${pendingTasks.length} tasks as completed`, 'success');
+    } catch (error) {
+      console.error('Error completing tasks:', error);
+      this.tasks = await this.loadTasks();
+      this.showNotification('Failed to complete all tasks!', 'error');
+    }
     this.renderTasks();
     this.updateStats();
-    this.showNotification(`Marked ${pendingTasks.length} tasks as completed`, 'success');
   }
 
   /**
    * Deletes all completed tasks after the user confirms.
    */
-  deleteCompleted() {
+  async deleteCompleted() {
     const completedTasks = this.tasks.filter(task => task.completed);
 
     if (completedTasks.length === 0) {
@@ -1090,11 +1178,18 @@ class TaskFlow {
     }
 
     if (confirm(`Delete ${completedTasks.length} completed tasks? This cannot be undone.`)) {
-      this.tasks = this.tasks.filter(task => !task.completed);
-      this.saveTasks();
+      try {
+        await Promise.all(completedTasks.map(task =>
+          this.apiRequest(`/api/tasks/${task.id}`, { method: 'DELETE' })));
+        this.tasks = this.tasks.filter(task => !task.completed);
+        this.showNotification(`Deleted ${completedTasks.length} completed tasks`, 'success');
+      } catch (error) {
+        console.error('Error deleting completed tasks:', error);
+        this.tasks = await this.loadTasks();
+        this.showNotification('Failed to delete completed tasks!', 'error');
+      }
       this.renderTasks();
       this.updateStats();
-      this.showNotification(`Deleted ${completedTasks.length} completed tasks`, 'success');
     }
   }
 }
