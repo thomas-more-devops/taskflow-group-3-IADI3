@@ -40,8 +40,11 @@ and [Docker build contexts and .dockerignore](https://docs.docker.com/build/conc
 The root Dockerfile now uses two stages. `dependencies` installs only locked
 production dependencies with `npm ci --omit=dev`; `runtime` receives those
 dependencies and the application files, including `database.js` and `models/`.
-The npm download cache stays out of the runtime image. Both stages use
-`node:22-alpine`, and `USER node` sets the runtime user before `CMD`.
+The npm download cache stays out of the runtime image. The dependencies stage
+uses `node:22-alpine3.23`; runtime uses matching `alpine:3.23` with the Node 22
+binary, npm and its required system libraries. This omits Yarn, Corepack and
+Node development headers from the final image while preserving `npm start`.
+`USER node` sets the runtime user before `CMD`.
 
 This version depends on Rodrigo's MongoDB backend (#24). The Dockerfile from
 the assignment 11 branch remains available at `feature/docker-container`.
@@ -49,13 +52,15 @@ the assignment 11 branch remains available at `feature/docker-container`.
 ```powershell
 docker build -t taskflow:2.0 .
 docker run --rm taskflow:2.0 whoami
-docker image inspect taskflow:2.0 --format '{{.Size}}'
-docker image inspect node:22-alpine --format '{{.Size}}'
+docker image ls taskflow:2.0
 ```
 
-Expected `whoami` output: `node`. Record the reported sizes in bytes; do not
-assume a size reduction from multi-stage alone, since both images use Alpine
-and version 2.0 also adds mongoose.
+Expected `whoami` output: `node`. With the containerd image store, record both
+`DISK USAGE` and `CONTENT SIZE`. Compressed content alone does not establish
+compliance with the course's 250 MB limit. CI checks the stricter
+`DISK USAGE < 250,000,000 bytes`, after starting the container, using Docker 29
+with the containerd image store. It logs both values from the Docker API and
+prints `docker image ls`.
 
 To start the full stack manually, or use Yoel's scripts from #28 once merged:
 
@@ -84,11 +89,17 @@ See [Docker multi-stage builds](https://docs.docker.com/build/building/multi-sta
 
 ## Recorded runner results (12 November 2026)
 
-| Image | Tested commit | Reported image size | Result |
+| Image | Tested commit | Original runner inspect size | Result |
 | --- | --- | --- | --- |
 | `taskflow:1.0` | `cda6fc3` | 63,543,563 bytes | [Build, curl CRUD and logs passed](https://github.com/thomas-more-devops/taskflow-group-3-IADI3/actions/runs/43234019734) |
 | `taskflow:2.0` | `392e10d` | 64,516,380 bytes | [Build, non-root user, real MongoDB, curl CRUD and logs passed](https://github.com/thomas-more-devops/taskflow-group-3-IADI3/actions/runs/43234025692) |
 
 The 2.0 logs confirm `MongoDB connected: taskflow-test-db:27017/taskflow`.
+Those original `inspect` values do not prove the Desktop `DISK USAGE` limit:
+Alex reported 262 MB disk usage and 64.5 MB content for the original 2.0 image.
+The revised runtime and CI above address that difference explicitly.
 These runs used GitHub's Linux runner. The laptop build remains pending
 because Docker Desktop and WSL are not installed on Juan's Windows laptop.
+
+Size reference: [Docker CLI image-size implementation](https://github.com/docker/cli/blob/master/cli/command/image/tree.go)
+and [containerd image store](https://docs.docker.com/desktop/features/containerd/).

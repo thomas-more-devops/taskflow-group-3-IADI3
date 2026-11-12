@@ -1,4 +1,5 @@
-FROM node:22-alpine AS dependencies
+ARG ALPINE_VERSION=3.23
+FROM node:22-alpine${ALPINE_VERSION} AS dependencies
 
 WORKDIR /app
 ENV NODE_ENV=production
@@ -6,7 +7,16 @@ ENV NODE_ENV=production
 COPY package*.json ./
 RUN npm ci --omit=dev && npm cache clean --force
 
-FROM node:22-alpine AS runtime
+FROM alpine:${ALPINE_VERSION} AS runtime
+
+RUN apk add --no-cache libstdc++ libatomic \
+    && addgroup -g 1000 node \
+    && adduser -u 1000 -G node -s /bin/sh -D node
+
+# Keep Node and npm start without Yarn, Corepack or Node development headers.
+COPY --from=dependencies /usr/local/bin/node /usr/local/bin/node
+COPY --from=dependencies /usr/local/lib/node_modules/npm /usr/local/lib/node_modules/npm
+RUN ln -s ../lib/node_modules/npm/bin/npm-cli.js /usr/local/bin/npm
 
 WORKDIR /app
 ENV NODE_ENV=production

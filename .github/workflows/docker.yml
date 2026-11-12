@@ -26,6 +26,14 @@ jobs:
         with:
           node-version: '22'
 
+      - name: Set up Docker with the Desktop image store
+        id: docker
+        uses: docker/setup-docker-action@v5
+        with:
+          version: v29.0.0
+          daemon-config: |
+            {"features":{"containerd-snapshotter":true}}
+
       - name: Select assignment image
         id: image
         run: |
@@ -63,6 +71,28 @@ jobs:
           else
             docker run -d --name taskflow-test-app -p 127.0.0.1:3000:3000 "$IMAGE"
           fi
+
+      - name: Report disk usage and enforce the 250 MB limit
+        env:
+          IMAGE: ${{ steps.image.outputs.tag }}
+          MONGO: ${{ steps.image.outputs.mongo }}
+          DOCKER_SOCKET: ${{ steps.docker.outputs.sock }}
+        run: |
+          curl --fail --silent --show-error --unix-socket "${DOCKER_SOCKET#unix://}" \
+            --get http://localhost/images/json --data-urlencode manifests=true \
+            --data-urlencode "filters={\"reference\":[\"$IMAGE\"]}" -o /tmp/image-size.json
+          node <<'NODE'
+          const assert = require('node:assert/strict');
+          const [image] = require('/tmp/image-size.json');
+          assert.ok(image, 'Built image must be present');
+          assert.ok(image.Manifests?.length, 'containerd manifest sizes must be available');
+          const contentBytes = image.Manifests.reduce((sum, manifest) => sum + manifest.Size.Content, 0);
+          console.log(JSON.stringify({ image: process.env.IMAGE, diskUsageBytes: image.Size, contentSizeBytes: contentBytes }));
+          if (process.env.MONGO === 'true') {
+            assert.ok(image.Size > 0 && image.Size < 250_000_000, 'taskflow:2.0 DISK USAGE must be below 250 MB (decimal)');
+          }
+          NODE
+          docker image ls "$IMAGE"
 
       - name: Test static files and API with curl
         run: |
