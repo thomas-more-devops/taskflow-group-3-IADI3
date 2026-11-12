@@ -10,6 +10,11 @@ app.use(cors());
 app.use(express.json());
 app.use(express.static('public'));
 
+// Health check: lets Docker, CI or a person check that the server is up
+app.get('/health', (req, res) => {
+  res.json({ status: 'ok' });
+});
+
 // In-memory task storage
 let tasks = [];
 let nextId = 1;
