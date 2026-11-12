@@ -15,6 +15,11 @@ app.use(express.static('public'));
 
 const wrap = (fn) => (req, res, next) => fn(req, res, next).catch(next);
 
+// Health check: lets Docker, CI or a person check that the server is up
+app.get('/health', (req, res) => {
+  res.json({ status: 'ok' });
+});
+
 // API Routes with MongoDB
 app.get('/api/tasks', wrap(async (req, res) => {
   const tasks = await Task.find();

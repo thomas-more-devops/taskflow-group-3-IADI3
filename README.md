@@ -50,13 +50,123 @@ This project is part of the **Bachelor International Business Management - Data 
 ### Mobile View
 *Fully responsive design that works on all devices*
 
-## 🏃 Quick Start
+## 🏃 How to Run
 
-1. **Clone or download** this repository
-2. **Open** `index.html` in your web browser
-3. **Start managing** your tasks immediately!
+TaskFlow is a Node.js (Express) server that serves the frontend from `public/` and stores the tasks
+through a small REST API (`/api/tasks`). The easiest way to run it is with Docker.
 
-No build process, no dependencies, no setup required - just open and use!
+### Prerequisites
+
+- [Git](https://git-scm.com/downloads)
+- [Docker Desktop](https://www.docker.com/products/docker-desktop/), **started** (the whale icon must say "Docker Desktop is running")
+- Port **3000** free on your computer
+
+Check that Docker is ready:
+
+```bash
+docker --version
+docker info
+```
+
+If `docker info` shows an error, Docker Desktop is not running yet.
+
+### 1. Get the code
+
+```bash
+git clone https://github.com/thomas-more-devops/taskflow-group-3-IADI3.git
+cd taskflow-group-3-IADI3
+```
+
+### 2. Build the image
+
+```bash
+docker build -t taskflow:1.1 .
+```
+
+### 3. Run the container
+
+```bash
+docker run -d -p 3000:3000 --name taskflow-app taskflow:1.1
+```
+
+Check that it is running and look at the logs:
+
+```bash
+docker ps
+docker logs taskflow-app
+```
+
+The logs should end with `TaskFlow server running on port 3000`.
+
+### 4. Open the app
+
+Go to **http://localhost:3000**. Tasks you add in the UI are saved on the server, so they are still
+there after you refresh the page.
+
+### 5. Test the API
+
+Check that the server is healthy:
+
+```bash
+curl http://localhost:3000/health
+```
+
+Create a task and list all tasks:
+
+**macOS / Linux / Git Bash**
+
+```bash
+curl -X POST http://localhost:3000/api/tasks -H "Content-Type: application/json" -d '{"title":"Test task from API"}'
+curl http://localhost:3000/api/tasks
+```
+
+**Windows Command Prompt (cmd)**
+
+```bat
+curl -X POST http://localhost:3000/api/tasks -H "Content-Type: application/json" -d "{\"title\":\"Test task from API\"}"
+curl http://localhost:3000/api/tasks
+```
+
+**Windows PowerShell**
+
+```powershell
+Invoke-RestMethod -Method Post -Uri http://localhost:3000/api/tasks -ContentType "application/json" -Body '{"title":"Test task from API"}'
+Invoke-RestMethod http://localhost:3000/api/tasks
+```
+
+Refresh **http://localhost:3000**: the task created with the API now shows up in the list.
+
+### 6. Stop and remove the container
+
+```bash
+docker stop taskflow-app
+docker rm taskflow-app
+```
+
+> ⚠️ The tasks are stored **in memory** inside the container. Removing (or restarting) the container
+> deletes them. Persistent storage with a database is added in a later version.
+
+### Run without Docker (development)
+
+Requires [Node.js 22](https://nodejs.org/) or newer.
+
+```bash
+npm install
+npm start
+```
+
+Then open **http://localhost:3000**. To use another port, set the `PORT` environment variable
+(`PORT=4000 npm start`, or `$env:PORT=4000; npm start` in PowerShell).
+
+### Troubleshooting
+
+| Problem | Solution |
+|---|---|
+| `docker info` fails / "cannot connect to the Docker daemon" | Start Docker Desktop and wait until it says it is running |
+| `port is already allocated` | Port 3000 is in use. Run with another host port: `docker run -d -p 3001:3000 --name taskflow-app taskflow:1.1` and open http://localhost:3001 |
+| `Conflict. The container name "/taskflow-app" is already in use` | Remove the old container first: `docker rm -f taskflow-app` |
+| The container stops right after starting | Read the error with `docker logs taskflow-app` |
+| The page loads but shows no tasks after a restart | Expected: tasks are kept in memory and are lost when the container is removed |
 
 ## 📋 Usage
 
@@ -151,7 +261,7 @@ git push origin feature/feature-name   # Push to remote
 5. Your app will be live at `https://thomas-more-devops.github.io/taskflow-group-3-IADI3`
 
 ### Local Development
-Simply open `index.html` in any modern web browser. No server required!
+Run `npm install` and `npm start`, then open http://localhost:3000. See [How to Run](#-how-to-run) for the Docker setup.
 
 ## 🌟 Key Features Explained
 
