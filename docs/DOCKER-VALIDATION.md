@@ -33,3 +33,50 @@ also run the final image on their own laptop.
 
 Dockerfile design references: [Node image best practices](https://github.com/nodejs/docker-node/blob/main/docs/BestPractices.md)
 and [Docker build contexts and .dockerignore](https://docs.docker.com/build/concepts/context/).
+
+## Assignment 12: taskflow:2.0
+
+The root Dockerfile now uses two stages. `dependencies` installs only locked
+production dependencies with `npm ci --omit=dev`; `runtime` receives those
+dependencies and the application files, including `database.js` and `models/`.
+The npm download cache stays out of the runtime image. Both stages use
+`node:22-alpine`, and `USER node` sets the runtime user before `CMD`.
+
+This version depends on Rodrigo's MongoDB backend (#24). The Dockerfile from
+the assignment 11 branch remains available at `feature/docker-container`.
+
+```powershell
+docker build -t taskflow:2.0 .
+docker run --rm taskflow:2.0 whoami
+docker image inspect taskflow:2.0 --format '{{.Size}}'
+docker image inspect node:22-alpine --format '{{.Size}}'
+```
+
+Expected `whoami` output: `node`. Record the reported sizes in bytes; do not
+assume a size reduction from multi-stage alone, since both images use Alpine
+and version 2.0 also adds mongoose.
+
+To start the full stack manually, or use Yoel's scripts from #28 once merged:
+
+```powershell
+docker network create taskflow-net
+docker volume create taskflow-db-data
+docker run -d --name taskflow-db --network taskflow-net -v taskflow-db-data:/data/db mongo:8.0.15
+docker run -d --name taskflow-app --network taskflow-net -p 3000:3000 -e DB_HOST=taskflow-db -e DB_NAME=taskflow taskflow:2.0
+docker logs taskflow-app
+curl.exe --fail http://localhost:3000/api/tasks
+```
+
+Create the named network and volume only if they do not already exist. Wait
+for `MongoDB connected` in the app logs before testing the API. MongoDB is
+reachable only on the Docker network; no database host port is published.
+The POST/GET commands above work with this backend too. Alex owns the full
+persistence test (remove and recreate both containers, retaining the volume)
+and the final README; frontend testing also needs Yoel's #27.
+
+With `database.js` present, the PR workflow builds `taskflow:2.0`, verifies
+`whoami` is `node`, starts a real `mongo:8.0.15` container with its own test
+network and volume, and runs the same curl API checks and logs the app.
+Its resources are isolated from the team stack and removed at the end.
+
+See [Docker multi-stage builds](https://docs.docker.com/build/building/multi-stage/).
