@@ -1,0 +1,101 @@
+name: Docker validation
+
+on:
+  pull_request:
+    paths:
+      - Dockerfile
+      - .dockerignore
+      - package*.json
+      - '*.js'
+      - models/**
+      - public/**
+      - .github/workflows/docker.yml
+
+permissions:
+  contents: read
+
+jobs:
+  docker:
+    name: Build and test Docker image
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+
+      - name: Select assignment image
+        id: image
+        run: |
+          if [ -f database.js ]; then
+            echo 'tag=taskflow:2.0' >> "$GITHUB_OUTPUT"
+            echo 'mongo=true' >> "$GITHUB_OUTPUT"
+          else
+            echo 'tag=taskflow:1.0' >> "$GITHUB_OUTPUT"
+            echo 'mongo=false' >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Build image and report size
+        run: |
+          docker build -t '${{ steps.image.outputs.tag }}' .
+          docker image inspect '${{ steps.image.outputs.tag }}' --format 'Image={{.RepoTags}} Size={{.Size}} bytes User={{.Config.User}}'
+          docker run --rm '${{ steps.image.outputs.tag }}' node -e "if (process.env.NODE_ENV !== 'production') process.exit(1); for (const name of ['eslint', 'nodemon', 'prettier']) { try { require.resolve(name); process.exit(1); } catch (error) { if (error.code !== 'MODULE_NOT_FOUND') throw error; } }"
+
+      - name: Check non-root user and start MongoDB
+        if: steps.image.outputs.mongo == 'true'
+        run: |
+          test "$(docker run --rm taskflow:2.0 whoami)" = node
+          docker network create taskflow-test-net
+          docker volume create taskflow-test-db-data
+          docker run -d --name taskflow-test-db --network taskflow-test-net \
+            -v taskflow-test-db-data:/data/db mongo:8.0.15
+
+      - name: Start application
+        env:
+          IMAGE: ${{ steps.image.outputs.tag }}
+          MONGO: ${{ steps.image.outputs.mongo }}
+        run: |
+          if [ "$MONGO" = true ]; then
+            docker run -d --name taskflow-test-app --network taskflow-test-net \
+              -p 127.0.0.1:3000:3000 -e DB_HOST=taskflow-test-db -e DB_NAME=taskflow "$IMAGE"
+          else
+            docker run -d --name taskflow-test-app -p 127.0.0.1:3000:3000 "$IMAGE"
+          fi
+
+      - name: Test static files and API with curl
+        run: |
+          set -euo pipefail
+          base=http://127.0.0.1:3000
+          curl --fail --silent --show-error --retry 30 --retry-delay 2 --retry-all-errors "$base/api/tasks" -o /tmp/tasks.json
+          node -e "require('node:assert/strict').deepEqual(require('/tmp/tasks.json'), [])"
+          for path in / /scripts/app.js /styles/main.css; do
+            curl --fail --silent --show-error "$base$path" -o /dev/null
+          done
+          status=$(curl --silent --show-error -o /tmp/task.json -w '%{http_code}' \
+            -H 'Content-Type: application/json' -d '{"title":"Juan Docker smoke test","category":"work","priority":"high"}' "$base/api/tasks")
+          test "$status" = 201
+          id=$(node -p "require('/tmp/task.json').id")
+          curl --fail --silent --show-error "$base/api/tasks" -o /tmp/tasks.json
+          node -e "const assert = require('node:assert/strict'); const task = require('/tmp/task.json'); assert.ok(task.id); assert.equal(task.title, 'Juan Docker smoke test'); assert.equal(task.category, 'work'); assert.equal(task.priority, 'high'); assert.ok(require('/tmp/tasks.json').some(t => t.id === task.id));"
+          curl --fail --silent --show-error -X PUT -H 'Content-Type: application/json' \
+            -d '{"title":"Updated in Docker","completed":true}' "$base/api/tasks/$id" -o /tmp/updated.json
+          node -e "const assert = require('node:assert/strict'); const task = require('/tmp/updated.json'); assert.equal(task.title, 'Updated in Docker'); assert.equal(task.completed, true);"
+          test "$(curl --silent --show-error -o /dev/null -w '%{http_code}' -X DELETE "$base/api/tasks/$id")" = 204
+          curl --fail --silent --show-error "$base/api/tasks" -o /tmp/tasks.json
+          node -e "require('node:assert/strict').deepEqual(require('/tmp/tasks.json'), [])"
+
+      - name: Show application logs
+        if: always()
+        run: |
+          if docker container inspect taskflow-test-app >/dev/null 2>&1; then
+            docker logs taskflow-test-app
+          fi
+
+      - name: Clean up test containers
+        if: always()
+        run: |
+          docker rm -f taskflow-test-app taskflow-test-db || true
+          docker volume rm taskflow-test-db-data || true
+          docker network rm taskflow-test-net || true
