@@ -112,6 +112,13 @@ jobs:
           curl --fail --silent --show-error -X PUT -H 'Content-Type: application/json' \
             -d '{"title":"Updated in Docker","completed":true}' "$base/api/tasks/$id" -o /tmp/updated.json
           node -e "const assert = require('node:assert/strict'); const task = require('/tmp/updated.json'); assert.equal(task.title, 'Updated in Docker'); assert.equal(task.completed, true);"
+          if [ -f database.js ]; then
+            status=$(curl --silent --show-error -o /tmp/invalid-update.json -w '%{http_code}' \
+              -X PUT -H 'Content-Type: application/json' -d '{"title":null}' "$base/api/tasks/$id")
+            test "$status" = 400
+            curl --fail --silent --show-error "$base/api/tasks" -o /tmp/tasks.json
+            node -e "const assert = require('node:assert/strict'); const id = require('/tmp/task.json').id; assert.equal(require('/tmp/tasks.json').find(task => task.id === id).title, 'Updated in Docker');"
+          fi
           test "$(curl --silent --show-error -o /dev/null -w '%{http_code}' -X DELETE "$base/api/tasks/$id")" = 204
           curl --fail --silent --show-error "$base/api/tasks" -o /tmp/tasks.json
           node -e "require('node:assert/strict').deepEqual(require('/tmp/tasks.json'), [])"
