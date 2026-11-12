@@ -2,6 +2,7 @@
 
 ## Assignment 11: taskflow:1.0
 
+Use branch `feature/docker-container` for these assignment 11 commands.
 From the repository root with Docker running (Linux containers):
 
 ```powershell
@@ -80,3 +81,14 @@ network and volume, and runs the same curl API checks and logs the app.
 Its resources are isolated from the team stack and removed at the end.
 
 See [Docker multi-stage builds](https://docs.docker.com/build/building/multi-stage/).
+
+## Recorded runner results (12 November 2026)
+
+| Image | Tested commit | Reported image size | Result |
+| --- | --- | --- | --- |
+| `taskflow:1.0` | `cda6fc3` | 63,543,563 bytes | [Build, curl CRUD and logs passed](https://github.com/thomas-more-devops/taskflow-group-3-IADI3/actions/runs/43234019734) |
+| `taskflow:2.0` | `392e10d` | 64,516,380 bytes | [Build, non-root user, real MongoDB, curl CRUD and logs passed](https://github.com/thomas-more-devops/taskflow-group-3-IADI3/actions/runs/43234025692) |
+
+The 2.0 logs confirm `MongoDB connected: taskflow-test-db:27017/taskflow`.
+These runs used GitHub's Linux runner. The laptop build remains pending
+because Docker Desktop and WSL are not installed on Juan's Windows laptop.
