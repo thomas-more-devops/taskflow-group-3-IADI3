@@ -787,7 +787,7 @@ class TaskFlow {
                 <div class="task-item ${task.completed ? 'completed' : ''} category-${task.category} priority-${task.priority} ${isOverdue ? 'overdue' : ''} ${isDueToday ? 'due-today' : ''}" data-task-id="${task.id}">
                     <div class="task-content">
                         <div class="task-checkbox ${task.completed ? 'checked' : ''}"
-                             onclick="taskFlow.toggleTask(${task.id})">
+                             onclick="taskFlow.toggleTask('${task.id}')">
                         </div>
                         <span class="task-text">${this.highlightSearchTerm(task.text)}</span>
                         <span class="category-badge category-${task.category}" style="background-color: ${this.getCategoryColor(task.category)}">
@@ -806,10 +806,10 @@ class TaskFlow {
                         </span>
                     </div>
                     <div class="task-actions">
-                        <button class="task-btn edit-btn" onclick="taskFlow.editTask(${task.id})" title="Edit task">
+                        <button class="task-btn edit-btn" onclick="taskFlow.editTask('${task.id}')" title="Edit task">
                             ✏️
                         </button>
-                        <button class="task-btn delete-btn" onclick="taskFlow.deleteTask(${task.id})" title="Delete task">
+                        <button class="task-btn delete-btn" onclick="taskFlow.deleteTask('${task.id}')" title="Delete task">
                             🗑️
                         </button>
                     </div>

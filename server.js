@@ -1,61 +1,72 @@
 const express = require('express');
 const cors = require('cors');
-const path = require('path');
+const rateLimit = require('express-rate-limit');
+const connectDB = require('./database');
+const Task = require('./models/Task');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Middleware
+// Connect to database
+connectDB();
+
 app.use(cors());
 app.use(express.json());
 app.use(express.static('public'));
+
+// Rate limit: at most 100 requests per minute per IP on the API
+const apiLimiter = rateLimit({ windowMs: 60 * 1000, max: 100, standardHeaders: true, legacyHeaders: false });
+app.use('/api', apiLimiter);
+
+// Only these fields can be set by a client, and only as plain values (never objects),
+// so a body like {"completed": {"$ne": null}} cannot reach MongoDB as an operator
+const FIELDS = ['title', 'priority', 'category', 'dueDate', 'completed', 'completedAt', 'createdAt'];
+const pick = (body = {}) => {
+  const out = {};
+  for (const key of FIELDS) {
+    const value = body[key];
+    if (['string', 'number', 'boolean'].includes(typeof value) || value === null) out[key] = value;
+  }
+  return out;
+};
+
+const wrap = (fn) => (req, res, next) => fn(req, res, next).catch(next);
 
 // Health check: lets Docker, CI or a person check that the server is up
 app.get('/health', (req, res) => {
   res.json({ status: 'ok' });
 });
 
-// In-memory task storage
-let tasks = [];
-let nextId = 1;
-
-// API Routes
-app.get('/api/tasks', (req, res) => {
+// API Routes with MongoDB
+app.get('/api/tasks', wrap(async (req, res) => {
+  const tasks = await Task.find();
   res.json(tasks);
-});
+}));
 
-app.post('/api/tasks', (req, res) => {
-  const task = {
-    id: nextId++,
-    title: req.body.title,
-    priority: req.body.priority || 'medium',
-    category: req.body.category || 'personal',
-    dueDate: req.body.dueDate || null,
-    completed: false,
-    completedAt: null,
-    createdAt: new Date().toISOString()
-  };
-  tasks.push(task);
+app.post('/api/tasks', wrap(async (req, res) => {
+  const task = new Task(pick(req.body));
+  await task.save();
   res.status(201).json(task);
-});
+}));
 
-app.delete('/api/tasks/:id', (req, res) => {
-  const id = parseInt(req.params.id);
-  tasks = tasks.filter(t => t.id !== id);
+app.delete('/api/tasks/:id', wrap(async (req, res) => {
+  await Task.findByIdAndDelete(String(req.params.id));
   res.status(204).send();
-});
+}));
 
-app.put('/api/tasks/:id', (req, res) => {
-  const id = parseInt(req.params.id);
-  const task = tasks.find(t => t.id === id);
-  if (task) {
-    Object.assign(task, req.body);
-    res.json(task);
-  } else {
-    res.status(404).json({ error: 'Task not found' });
-  }
+app.put('/api/tasks/:id', wrap(async (req, res) => {
+  const task = await Task.findByIdAndUpdate(String(req.params.id), pick(req.body), { new: true, runValidators: true });
+  if (!task) return res.status(404).json({ error: 'Task not found' });
+  res.json(task);
+}));
+
+// Error handler: has to come after the routes
+app.use((err, req, res, next) => {
+  console.error(err.message);
+  const status = ['CastError', 'ValidationError'].includes(err.name) ? 400 : 500;
+  res.status(status).json({ error: err.message });
 });
 
 app.listen(PORT, () => {
-  console.log(`TaskFlow server running on port ${PORT}`);
+  console.log(`TaskFlow server on port ${PORT}`);
 });
