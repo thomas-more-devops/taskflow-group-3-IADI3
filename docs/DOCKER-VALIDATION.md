@@ -98,6 +98,11 @@ The 2.0 logs confirm `MongoDB connected: taskflow-test-db:27017/taskflow`.
 Those original `inspect` values do not prove the Desktop `DISK USAGE` limit:
 Alex reported 262 MB disk usage and 64.5 MB content for the original 2.0 image.
 The revised runtime and CI above address that difference explicitly.
+The [updated Docker 29/containerd run](https://github.com/thomas-more-devops/taskflow-group-3-IADI3/actions/runs/43269561588)
+on commit `72aa45a` reports **238,513,446 bytes DISK USAGE** (CLI: 239 MB)
+and **58,793,254 bytes CONTENT SIZE** (CLI: 58.8 MB). The stricter disk usage
+check passes below 250,000,000 bytes, alongside the non-root, MongoDB, static
+asset and curl CRUD checks. This supersedes the original 2.0 size measurement.
 These runs used GitHub's Linux runner. The laptop build remains pending
 because Docker Desktop and WSL are not installed on Juan's Windows laptop.
 
