@@ -1,0 +1,49 @@
+# TaskFlow + MongoDB with one command:  docker compose up -d --build
+# Same names as the manual setup in the README (taskflow-net, taskflow-db-data,
+# taskflow-db, taskflow-app), so both ways share the same data.
+services:
+  db:
+    image: mongo:8.0.15
+    container_name: taskflow-db
+    volumes:
+      - taskflow-db-data:/data/db
+    networks:
+      - taskflow-net
+    # No ports: the database is only reachable from containers on taskflow-net
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping').ok"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    restart: unless-stopped
+
+  app:
+    build: .
+    image: taskflow:2.0
+    container_name: taskflow-app
+    ports:
+      - "3000:3000"
+    environment:
+      DB_HOST: taskflow-db
+      DB_NAME: taskflow
+    networks:
+      - taskflow-net
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:3000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+
+volumes:
+  taskflow-db-data:
+    name: taskflow-db-data
+
+networks:
+  taskflow-net:
+    name: taskflow-net
