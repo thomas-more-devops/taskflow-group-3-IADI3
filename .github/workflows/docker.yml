@@ -100,7 +100,7 @@ jobs:
           base=http://127.0.0.1:3000
           curl --fail --silent --show-error --retry 30 --retry-delay 2 --retry-all-errors "$base/api/tasks" -o /tmp/tasks.json
           node -e "require('node:assert/strict').deepEqual(require('/tmp/tasks.json'), [])"
-          for path in / /scripts/app.js /styles/main.css; do
+          for path in / /health /scripts/app.js /styles/main.css; do
             curl --fail --silent --show-error "$base$path" -o /dev/null
           done
           status=$(curl --silent --show-error -o /tmp/task.json -w '%{http_code}' \
