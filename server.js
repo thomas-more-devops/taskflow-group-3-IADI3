@@ -55,7 +55,7 @@ app.delete('/api/tasks/:id', wrap(async (req, res) => {
 }));
 
 app.put('/api/tasks/:id', wrap(async (req, res) => {
-  const task = await Task.findByIdAndUpdate(String(req.params.id), pick(req.body), { new: true });
+  const task = await Task.findByIdAndUpdate(String(req.params.id), pick(req.body), { new: true, runValidators: true });
   if (!task) return res.status(404).json({ error: 'Task not found' });
   res.json(task);
 }));
