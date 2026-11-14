@@ -52,23 +52,31 @@ This project is part of the **Bachelor International Business Management - Data 
 
 ## 🏃 How to Run
 
-TaskFlow is a Node.js (Express) server that serves the frontend from `public/` and stores the tasks
-through a small REST API (`/api/tasks`). The easiest way to run it is with Docker.
+TaskFlow runs as **two containers** on a private Docker network:
+
+| Container | Image | What it does |
+|---|---|---|
+| `taskflow-app` | `taskflow:2.0` (built from this repo) | Node.js / Express server: serves the frontend from `public/` and the REST API `/api/tasks` |
+| `taskflow-db` | `mongo:8.0.15` | MongoDB database. Its data lives in the Docker volume `taskflow-db-data` |
+
+```
+ Browser ──► localhost:3000 ──► taskflow-app ──(taskflow-net)──► taskflow-db ──► volume taskflow-db-data
+```
+
+The database has **no published port**: only containers on `taskflow-net` can reach it.
 
 ### Prerequisites
 
 - [Git](https://git-scm.com/downloads)
-- [Docker Desktop](https://www.docker.com/products/docker-desktop/), **started** (the whale icon must say "Docker Desktop is running")
+- [Docker Desktop](https://www.docker.com/products/docker-desktop/), **started** (on Windows it uses WSL 2)
 - Port **3000** free on your computer
 
-Check that Docker is ready:
+Check that Docker is ready (both commands must work without errors):
 
 ```bash
 docker --version
 docker info
 ```
-
-If `docker info` shows an error, Docker Desktop is not running yet.
 
 ### 1. Get the code
 
@@ -77,41 +85,62 @@ git clone https://github.com/thomas-more-devops/taskflow-group-3-IADI3.git
 cd taskflow-group-3-IADI3
 ```
 
-### 2. Build the image
+### 2. Start TaskFlow — option A: one command (Docker Compose)
 
 ```bash
-docker build -t taskflow:1.1 .
+docker compose up -d --build
 ```
 
-### 3. Run the container
+This builds `taskflow:2.0`, creates the network and the volume, starts MongoDB, waits until it is
+**healthy** and then starts the app. Check the status:
 
 ```bash
-docker run -d -p 3000:3000 --name taskflow-app taskflow:1.1
+docker compose ps
 ```
 
-Check that it is running and look at the logs:
+Both containers should say `(healthy)` after about 20 seconds. Open **http://localhost:3000**.
+
+Stop everything (the tasks are kept in the volume):
 
 ```bash
-docker ps
+docker compose down
+```
+
+### 2. Start TaskFlow — option B: step by step (plain Docker)
+
+These are the same steps Compose does for you.
+
+```bash
+# 1. Private network and a named volume for the database
+docker network create taskflow-net
+docker volume create taskflow-db-data
+
+# 2. MongoDB, with the volume mounted on /data/db
+docker run -d --name taskflow-db --network taskflow-net -v taskflow-db-data:/data/db mongo:8.0.15
+
+# 3. Build the app image (multi-stage, runs as the non-root user "node")
+docker build -t taskflow:2.0 .
+
+# 4. Run the app on the same network
+docker run -d --name taskflow-app --network taskflow-net -p 3000:3000 -e DB_HOST=taskflow-db -e DB_NAME=taskflow taskflow:2.0
+```
+
+Check the logs:
+
+```bash
 docker logs taskflow-app
 ```
 
-The logs should end with `TaskFlow server running on port 3000`.
+You should see `MongoDB connected: taskflow-db:27017/taskflow`. A few lines saying
+`MongoDB not ready (x/10), retrying in 3s` before it are normal: the app waits for the database.
 
-### 4. Open the app
+Open **http://localhost:3000**.
 
-Go to **http://localhost:3000**. Tasks you add in the UI are saved on the server, so they are still
-there after you refresh the page.
-
-### 5. Test the API
-
-Check that the server is healthy:
+### 3. Test the API
 
 ```bash
 curl http://localhost:3000/health
 ```
-
-Create a task and list all tasks:
 
 **macOS / Linux / Git Bash**
 
@@ -134,39 +163,93 @@ Invoke-RestMethod -Method Post -Uri http://localhost:3000/api/tasks -ContentType
 Invoke-RestMethod http://localhost:3000/api/tasks
 ```
 
-Refresh **http://localhost:3000**: the task created with the API now shows up in the list.
+Refresh **http://localhost:3000**: the task created with the API shows up in the list. Task ids are
+MongoDB ids (text like `6af5cda78c3abfbcc3a2d023`).
 
-### 6. Stop and remove the container
+Look inside the database (optional):
 
 ```bash
-docker stop taskflow-app
-docker rm taskflow-app
+docker exec -it taskflow-db mongosh taskflow --eval "db.tasks.find()"
 ```
 
-> ⚠️ The tasks are stored **in memory** inside the container. Removing (or restarting) the container
-> deletes them. Persistent storage with a database is added in a later version.
+### 4. Persistence tests
+
+Create a few tasks in the UI first, then run the tests.
+
+**Test A — remove the app container.** The tasks live in the database, not in the app.
+
+```bash
+docker rm -f taskflow-app
+docker run -d --name taskflow-app --network taskflow-net -p 3000:3000 -e DB_HOST=taskflow-db -e DB_NAME=taskflow taskflow:2.0
+```
+
+Refresh the page: ✅ the tasks are still there.
+
+**Test B — remove both containers.** The database container is gone too, so the data survives only
+because of the volume.
+
+```bash
+docker rm -f taskflow-app taskflow-db
+docker run -d --name taskflow-db --network taskflow-net -v taskflow-db-data:/data/db mongo:8.0.15
+docker run -d --name taskflow-app --network taskflow-net -p 3000:3000 -e DB_HOST=taskflow-db -e DB_NAME=taskflow taskflow:2.0
+```
+
+Wait about 10 seconds and refresh: ✅ the tasks are still there, because the new database container
+mounted the same volume `taskflow-db-data`.
+
+**Test C — without the volume.** Repeat Test B, but start `taskflow-db` **without**
+`-v taskflow-db-data:/data/db`, add a task, then remove and recreate both containers again (still
+without `-v`): ❌ the task is gone.
+
+**Why?** MongoDB stores its data in `/data/db` inside the container. Without our named volume,
+Docker gives every new `mongo` container its own new, empty anonymous volume, and nothing tells
+the next container to use the old one. With `-v taskflow-db-data:/data/db` every database container
+uses the same named volume, so the data outlives the containers.
+
+> Results on our laptops (12/11/2026): Test A ✅, Test B ✅, Test C ❌ tasks lost, as expected.
+> `docker compose down` + `docker compose up -d` also keeps the tasks.
+
+### 5. Clean up
+
+Stop and remove the containers but **keep** the tasks:
+
+```bash
+docker rm -f taskflow-app taskflow-db    # or: docker compose down
+```
+
+Remove **everything, including all tasks**:
+
+```bash
+docker rm -f taskflow-app taskflow-db
+docker network rm taskflow-net
+docker volume rm taskflow-db-data       # or: docker compose down -v
+```
 
 ### Run without Docker (development)
 
-Requires [Node.js 22](https://nodejs.org/) or newer.
+Requires [Node.js 22](https://nodejs.org/) and a MongoDB reachable from your computer. The app
+reads `DB_HOST` (default `mongodb`), `DB_PORT` (default `27017`), `DB_NAME` (default `taskflow`)
+and `PORT` (default `3000`).
 
 ```bash
 npm install
-npm start
+DB_HOST=localhost npm start
 ```
 
-Then open **http://localhost:3000**. To use another port, set the `PORT` environment variable
-(`PORT=4000 npm start`, or `$env:PORT=4000; npm start` in PowerShell).
+(PowerShell: `$env:DB_HOST="localhost"; npm start`.)
 
 ### Troubleshooting
 
 | Problem | Solution |
 |---|---|
 | `docker info` fails / "cannot connect to the Docker daemon" | Start Docker Desktop and wait until it says it is running |
-| `port is already allocated` | Port 3000 is in use. Run with another host port: `docker run -d -p 3001:3000 --name taskflow-app taskflow:1.1` and open http://localhost:3001 |
-| `Conflict. The container name "/taskflow-app" is already in use` | Remove the old container first: `docker rm -f taskflow-app` |
-| The container stops right after starting | Read the error with `docker logs taskflow-app` |
-| The page loads but shows no tasks after a restart | Expected: tasks are kept in memory and are lost when the container is removed |
+| `port is already allocated` | Port 3000 is in use. Use another host port, e.g. `-p 3001:3000` (or `"3001:3000"` in `docker-compose.yml`), and open http://localhost:3001 |
+| `Conflict. The container name "/taskflow-app" is already in use` | Remove the old container: `docker rm -f taskflow-app` (same for `taskflow-db`) |
+| `network taskflow-net already exists` / `volume ... already exists` | Fine: they were created before. Skip the `create` command, or use them as they are |
+| Compose warns `volume "taskflow-db-data" already exists but was not created by Docker Compose` | Harmless: you created it with the manual steps first. Compose uses it and the tasks are kept |
+| Logs keep saying `MongoDB not ready` and then `giving up` | The app cannot reach the database: check that `taskflow-db` is running (`docker ps`), that both containers are on `taskflow-net` and that `DB_HOST=taskflow-db` |
+| The tasks disappeared | `taskflow-db` was started without `-v taskflow-db-data:/data/db` (see Test C), or the volume was removed |
+| `docker run --rm taskflow:2.0 whoami` | Prints `node`: the app does not run as root |
 
 ## 📋 Usage
 
@@ -261,7 +344,7 @@ git push origin feature/feature-name   # Push to remote
 5. Your app will be live at `https://thomas-more-devops.github.io/taskflow-group-3-IADI3`
 
 ### Local Development
-Run `npm install` and `npm start`, then open http://localhost:3000. See [How to Run](#-how-to-run) for the Docker setup.
+See [How to Run](#-how-to-run): `docker compose up -d --build`, then open http://localhost:3000.
 
 ## 🌟 Key Features Explained
 
