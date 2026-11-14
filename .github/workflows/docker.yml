@@ -26,6 +26,14 @@ jobs:
         with:
           node-version: '22'
 
+      - name: Set up Docker with the Desktop image store
+        id: docker
+        uses: docker/setup-docker-action@v5
+        with:
+          version: v29.0.0
+          daemon-config: |
+            {"features":{"containerd-snapshotter":true}}
+
       - name: Select assignment image
         id: image
         run: |
@@ -64,13 +72,35 @@ jobs:
             docker run -d --name taskflow-test-app -p 127.0.0.1:3000:3000 "$IMAGE"
           fi
 
+      - name: Report disk usage and enforce the 250 MB limit
+        env:
+          IMAGE: ${{ steps.image.outputs.tag }}
+          MONGO: ${{ steps.image.outputs.mongo }}
+          DOCKER_SOCKET: ${{ steps.docker.outputs.sock }}
+        run: |
+          curl --fail --silent --show-error --unix-socket "${DOCKER_SOCKET#unix://}" \
+            --get http://localhost/images/json --data-urlencode manifests=true \
+            --data-urlencode "filters={\"reference\":[\"$IMAGE\"]}" -o /tmp/image-size.json
+          node <<'NODE'
+          const assert = require('node:assert/strict');
+          const [image] = require('/tmp/image-size.json');
+          assert.ok(image, 'Built image must be present');
+          assert.ok(image.Manifests?.length, 'containerd manifest sizes must be available');
+          const contentBytes = image.Manifests.reduce((sum, manifest) => sum + manifest.Size.Content, 0);
+          console.log(JSON.stringify({ image: process.env.IMAGE, diskUsageBytes: image.Size, contentSizeBytes: contentBytes }));
+          if (process.env.MONGO === 'true') {
+            assert.ok(image.Size > 0 && image.Size < 250_000_000, 'taskflow:2.0 DISK USAGE must be below 250 MB (decimal)');
+          }
+          NODE
+          docker image ls "$IMAGE"
+
       - name: Test static files and API with curl
         run: |
           set -euo pipefail
           base=http://127.0.0.1:3000
           curl --fail --silent --show-error --retry 30 --retry-delay 2 --retry-all-errors "$base/api/tasks" -o /tmp/tasks.json
           node -e "require('node:assert/strict').deepEqual(require('/tmp/tasks.json'), [])"
-          for path in / /scripts/app.js /styles/main.css; do
+          for path in / /health /scripts/app.js /styles/main.css; do
             curl --fail --silent --show-error "$base$path" -o /dev/null
           done
           status=$(curl --silent --show-error -o /tmp/task.json -w '%{http_code}' \
@@ -82,6 +112,13 @@ jobs:
           curl --fail --silent --show-error -X PUT -H 'Content-Type: application/json' \
             -d '{"title":"Updated in Docker","completed":true}' "$base/api/tasks/$id" -o /tmp/updated.json
           node -e "const assert = require('node:assert/strict'); const task = require('/tmp/updated.json'); assert.equal(task.title, 'Updated in Docker'); assert.equal(task.completed, true);"
+          if [ -f database.js ]; then
+            status=$(curl --silent --show-error -o /tmp/invalid-update.json -w '%{http_code}' \
+              -X PUT -H 'Content-Type: application/json' -d '{"title":null}' "$base/api/tasks/$id")
+            test "$status" = 400
+            curl --fail --silent --show-error "$base/api/tasks" -o /tmp/tasks.json
+            node -e "const assert = require('node:assert/strict'); const id = require('/tmp/task.json').id; assert.equal(require('/tmp/tasks.json').find(task => task.id === id).title, 'Updated in Docker');"
+          fi
           test "$(curl --silent --show-error -o /dev/null -w '%{http_code}' -X DELETE "$base/api/tasks/$id")" = 204
           curl --fail --silent --show-error "$base/api/tasks" -o /tmp/tasks.json
           node -e "require('node:assert/strict').deepEqual(require('/tmp/tasks.json'), [])"
