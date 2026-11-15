@@ -1,0 +1,142 @@
+name: Frontend Docker validation
+
+on:
+  pull_request:
+    paths:
+      - frontend/**
+      - .github/workflows/frontend.yml
+
+permissions:
+  contents: read
+
+jobs:
+  frontend:
+    name: Build and test nginx frontend
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+
+      - name: Build frontend and validate nginx configuration
+        run: |
+          docker build -t taskflow-frontend:test frontend
+          docker run --rm taskflow-frontend:test nginx -v
+          docker run --rm taskflow-frontend:test nginx -t
+
+      - name: Test static files before the backend starts
+        run: |
+          set -euo pipefail
+          docker network create taskflow-frontend-test
+          docker run -d --name taskflow-frontend-test --network taskflow-frontend-test \
+            -p 127.0.0.1:8080:80 taskflow-frontend:test
+          docker inspect taskflow-frontend-test --format '{{.State.StartedAt}}' > /tmp/frontend-started-at
+          base=http://127.0.0.1:8080
+          curl --fail --silent --show-error --retry 10 --retry-delay 1 --retry-all-errors "$base/health" -o /tmp/frontend-health.json
+          node -e "const assert = require('node:assert/strict'); assert.deepEqual(require('/tmp/frontend-health.json'), {status: 'ok', service: 'frontend'});"
+          for path in index.html scripts/app.js styles/main.css; do
+            curl --fail --silent --show-error "$base/$path" -o /tmp/frontend-asset
+            cmp "frontend/public/$path" /tmp/frontend-asset
+          done
+          curl --fail --silent --show-error "$base/" -o /tmp/frontend-asset
+          cmp frontend/public/index.html /tmp/frontend-asset
+          test "$(curl --silent --show-error -o /dev/null -w '%{http_code}' "$base/missing-file.js")" = 404
+          test "$(curl --silent --show-error -o /dev/null -w '%{http_code}' "$base/api/tasks")" = 502
+
+      - name: Start a backend protocol fixture
+        run: |
+          cat > /tmp/taskflow-proxy-fixture.cjs <<'NODE'
+          const http = require('node:http');
+          const { hostname } = require('node:os');
+          const statusByMethod = { POST: 201, DELETE: 204 };
+          http.createServer((request, response) => {
+            let body = '';
+            request.on('data', chunk => { body += chunk; });
+            request.on('end', () => {
+              response.setHeader('Content-Type', 'application/json');
+              response.statusCode = statusByMethod[request.method] || 200;
+              if (response.statusCode === 204) return response.end();
+              response.end(JSON.stringify({
+                method: request.method,
+                url: request.url,
+                body: body ? JSON.parse(body) : null,
+                hostname: hostname()
+              }));
+            });
+          }).listen(3000, '0.0.0.0');
+          NODE
+          docker run -d --name taskflow-proxy-backend-1 --network taskflow-frontend-test \
+            --network-alias backend -v /tmp/taskflow-proxy-fixture.cjs:/server.cjs:ro \
+            node:22-alpine node /server.cjs
+
+      - name: Verify proxy paths, methods and JSON bodies
+        run: |
+          set -euo pipefail
+          base=http://127.0.0.1:8080
+          curl --fail --silent --show-error --retry 30 --retry-delay 1 --retry-all-errors \
+            "$base/api/tasks?completed=false" -o /tmp/proxy-get.json
+          node -e "const assert = require('node:assert/strict'); const result = require('/tmp/proxy-get.json'); assert.equal(result.method, 'GET'); assert.equal(result.url, '/api/tasks?completed=false');"
+          status=$(curl --fail --silent --show-error -o /tmp/proxy-post.json -w '%{http_code}' \
+            -H 'Content-Type: application/json' -d '{"title":"Proxy test"}' "$base/api/tasks")
+          test "$status" = 201
+          node -e "const assert = require('node:assert/strict'); const result = require('/tmp/proxy-post.json'); assert.equal(result.method, 'POST'); assert.equal(result.url, '/api/tasks'); assert.deepEqual(result.body, {title: 'Proxy test'});"
+          curl --fail --silent --show-error -X PUT -H 'Content-Type: application/json' \
+            -d '{"title":"Updated proxy test","completed":true}' "$base/api/tasks/task-123?source=nginx" -o /tmp/proxy-put.json
+          node -e "const assert = require('node:assert/strict'); const result = require('/tmp/proxy-put.json'); assert.equal(result.method, 'PUT'); assert.equal(result.url, '/api/tasks/task-123?source=nginx'); assert.deepEqual(result.body, {title: 'Updated proxy test', completed: true});"
+          test "$(curl --silent --show-error -X DELETE -o /dev/null -w '%{http_code}' "$base/api/tasks/task-123")" = 204
+
+      - name: Resolve and balance three backend replicas
+        run: |
+          for replica in 2 3; do
+            docker run -d --name "taskflow-proxy-backend-$replica" --network taskflow-frontend-test \
+              --network-alias backend -v /tmp/taskflow-proxy-fixture.cjs:/server.cjs:ro \
+              node:22-alpine node /server.cjs
+          done
+          node <<'NODE'
+          const assert = require('node:assert/strict');
+          (async () => {
+            const hostnames = new Set();
+            const deadline = Date.now() + 30_000;
+            while (hostnames.size < 3 && Date.now() < deadline) {
+              try {
+                const response = await fetch('http://127.0.0.1:8080/api/tasks');
+                if (response.ok) hostnames.add((await response.json()).hostname);
+              } catch (error) {
+                console.log('Waiting for backend DNS update:', error.message);
+              }
+              await new Promise(resolve => setTimeout(resolve, 200));
+            }
+            console.log('Backend replicas reached:', [...hostnames]);
+            assert.equal(hostnames.size, 3);
+          })().catch(error => { console.error(error); process.exitCode = 1; });
+          NODE
+
+      - name: Recover after backend addresses change
+        run: |
+          set -euo pipefail
+          docker run -d --name taskflow-proxy-backend-4 --network taskflow-frontend-test \
+            --network-alias backend -v /tmp/taskflow-proxy-fixture.cjs:/server.cjs:ro \
+            node:22-alpine node /server.cjs
+          docker rm -f taskflow-proxy-backend-1 taskflow-proxy-backend-2 taskflow-proxy-backend-3
+          curl --fail --silent --show-error --retry 30 --retry-delay 1 --retry-all-errors \
+            http://127.0.0.1:8080/api/tasks -o /tmp/proxy-replacement.json
+          expected=$(docker inspect taskflow-proxy-backend-4 --format '{{.Config.Hostname}}')
+          test "$(node -p "require('/tmp/proxy-replacement.json').hostname")" = "$expected"
+          test "$(docker inspect taskflow-frontend-test --format '{{.State.StartedAt}}')" = "$(cat /tmp/frontend-started-at)"
+          test "$(docker inspect taskflow-frontend-test --format '{{.RestartCount}}')" = 0
+
+      - name: Show frontend logs
+        if: always()
+        run: |
+          if docker container inspect taskflow-frontend-test >/dev/null 2>&1; then
+            docker logs taskflow-frontend-test
+          fi
+
+      - name: Clean up test containers
+        if: always()
+        run: |
+          docker rm -f taskflow-frontend-test taskflow-proxy-backend-{1..4} || true
+          docker network rm taskflow-frontend-test || true
