@@ -1,0 +1,17 @@
+.git
+.github
+**/node_modules
+**/.npm
+**/.env
+**/.env.*
+**/*.log
+coverage
+.nyc_output
+.vscode
+.idea
+docs
+docker
+README.md
+LICENSE
+Dockerfile*
+.dockerignore
